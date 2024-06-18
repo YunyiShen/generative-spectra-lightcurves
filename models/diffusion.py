@@ -39,6 +39,7 @@ class VariationalDiffusionModel(nn.Module):
       norm_dict: Dict of normalization arguments (see datasets.py docstrings).
       n_pos_features: Number of positional features, for graph-building etc.
       scale_non_linear_init: Whether to scale the initialization of the non-linear layers in the noise model.
+      conditioning_type: Type of conditioning; "class" or "photometry" or None.
     """
 
     d_feature: int = 3
@@ -59,6 +60,9 @@ class VariationalDiffusionModel(nn.Module):
         }
     )
     scale_non_linear_init: bool = False
+    conditioning_type: str = None # "class" or "photometry"
+    num_classes: int = None # number of classes for conditioning, if conditing
+    
 
     def setup(self):
         # Noise schedule for diffusion
@@ -84,6 +88,8 @@ class VariationalDiffusionModel(nn.Module):
             self.score_model = TransformerScoreNet(
                 d_t_embedding=self.d_t_embedding,
                 score_dict=self.score_dict,
+                conditioning_type=self.conditioning_type,
+                num_classes=self.num_classes,
             )
         else:
             raise NotImplementedError(f"Unknown score model {self.score}")

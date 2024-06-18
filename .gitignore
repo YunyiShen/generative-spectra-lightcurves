@@ -175,3 +175,5 @@ notebooks/data
 jax-trace
 data/*
 data/set_diffuser_data/*
+scripts/sandbox.py
+scripts/sandbox.sh

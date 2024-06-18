@@ -24,6 +24,8 @@ class TransformerScoreNet(nn.Module):
             "n_heads": 4,
         }
     )
+    conditioning_type: str = None # type of conditioning
+    num_classes: int = None # number of classes for conditioning, if conditing
     adanorm: bool = False
 
     @nn.compact
@@ -34,12 +36,17 @@ class TransformerScoreNet(nn.Module):
         t_embedding = get_timestep_embedding(t, self.d_t_embedding)
         t_embedding = nn.Dense(self.score_dict["d_model"])(t_embedding)
 
-        if conditioning is not None:
-            # Project conditioning to embedding space of transformer
-            conditioning = nn.Dense(self.score_dict["d_model"])(conditioning)
-            cond = t_embedding[:, None, :] + conditioning
-        else:
+        if conditioning is None:
             cond = t_embedding[:, None, :]
+        elif self.conditioning_type == "class":
+            conditioning = nn.Embed(self.num_classes,self.score_dict["d_model"])(conditioning)
+            # Project conditioning to embedding space of transformer
+            #conditioning = nn.Dense(self.score_dict["d_model"])(conditioning)
+            cond = t_embedding[:, None, :] + conditioning
+        elif self.conditioning_type == "photometry":
+            raise NotImplementedError("Photometry conditioning not implemented yet.")
+        else:
+            raise ValueError(f"Unknown conditioning type {self.conditioning_type}")
 
         # Make copy of score dict since original cannot be in-place modified; remove `score` argument before passing to Net
         score_dict = dict(self.score_dict)
