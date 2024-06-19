@@ -23,13 +23,7 @@ spec_data = specdata(master_list = "../data/ZTFBTS/ZTFBTS_TransientTable_train.c
                      verbose = False)
 flux, freq, mask, type,redflux, redtime, redmask, greentime, greenflux, greenmask = spec_data.get_data()
 
-
-transformer = Transformer(n_input=1)
-
-x = jax.random.normal(jax.random.PRNGKey(0), (1, 200, 1))
-init_rngs = {"params": jax.random.PRNGKey(0)}
-out, params = transformer.init_with_output(init_rngs, x)
-
+# Define the model
 vdm = classcondVariationalDiffusionModel(d_feature=1, d_t_embedding=32, 
                                          noise_scale=1e-4, 
                                          noise_schedule="learned_linear",

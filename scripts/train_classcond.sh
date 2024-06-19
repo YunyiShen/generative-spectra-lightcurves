@@ -2,4 +2,4 @@
 module load anaconda/2023a-pytorch
 conda activate jax
 
-python test_classcond.py
+python train_classcond.py
