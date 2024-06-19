@@ -43,7 +43,7 @@ tx = optax.adamw(learning_rate=schedule, weight_decay=1e-5)
 state = TrainState.create(apply_fn=vdm.apply, params=params, tx=tx)
 pstate = replicate(state)
 
-
+x = jax.random.normal(jax.random.PRNGKey(0), (1, 200, 1))
 def loss_vdm(outputs, masks=None):
     loss_diff, loss_klz, loss_recon = outputs
     if masks is None:
