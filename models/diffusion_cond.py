@@ -12,14 +12,14 @@ from models.diffusion_utils import (
     NoiseScheduleNet,
 )
 from models.scores_cond import (
-    TransformerScoreNet,
+    classcondTransformerScoreNet,
 )
 from models.mlp import MLPEncoder, MLPDecoder
 
 tfd = tfp.distributions
 
 
-class VariationalDiffusionModel(nn.Module):
+class classcondVariationalDiffusionModel(nn.Module):
     """Variational Diffusion Model (VDM), adapted from https://github.com/google-research/vdm
 
     Attributes:
@@ -39,6 +39,7 @@ class VariationalDiffusionModel(nn.Module):
       norm_dict: Dict of normalization arguments (see datasets.py docstrings).
       n_pos_features: Number of positional features, for graph-building etc.
       scale_non_linear_init: Whether to scale the initialization of the non-linear layers in the noise model.
+      conditioning_type: Type of conditioning; "class" or "photometry" or None.
     """
 
     d_feature: int = 3
@@ -59,6 +60,8 @@ class VariationalDiffusionModel(nn.Module):
         }
     )
     scale_non_linear_init: bool = False
+    num_classes: int = None # number of classes for conditioning, if conditing
+    
 
     def setup(self):
         # Noise schedule for diffusion
@@ -81,18 +84,20 @@ class VariationalDiffusionModel(nn.Module):
 
         # Score model specification
         if self.score == "transformer":
-            self.score_model = TransformerScoreNet(
+            self.score_model = classcondTransformerScoreNet(
                 d_t_embedding=self.d_t_embedding,
                 score_dict=self.score_dict,
+                num_classes=self.num_classes,
             )
         else:
             raise NotImplementedError(f"Unknown score model {self.score}")
 
-    def score_eval(self, z, t, conditioning, mask):
+    def score_eval(self, flux, t, freq,conditioning, mask):
         """Evaluate the score model."""
         return self.score_model(
-            z=z,
+            flux=flux,
             t=t,
+            freq = freq,
             conditioning=conditioning,
             mask=mask,
         )
@@ -100,7 +105,7 @@ class VariationalDiffusionModel(nn.Module):
     def gammat(self, t):
         return self.gamma(t)
 
-    def recon_loss(self, x, f, cond):
+    def recon_loss(self, x, f):
         """The reconstruction loss measures the gap in the first step.
         We measure the gap from encoding the image to z_0 and back again.
         """
@@ -122,16 +127,17 @@ class VariationalDiffusionModel(nn.Module):
         loss_klz = 0.5 * (mean1_sqr + var_1 - np.log(var_1) - 1.0)
         return loss_klz
 
-    def diffusion_loss(self, t, f, cond, mask):
+    def diffusion_loss(self, t, flux, freq, cond, mask):
         """The diffusion loss measures the gap in the intermediate steps."""
         # Sample z_t
         g_t = self.gamma(t)
-        eps = jax.random.normal(self.make_rng("sample"), shape=f.shape)
-        z_t = variance_preserving_map(f, g_t[:, None], eps)
+        eps = jax.random.normal(self.make_rng("sample"), shape=flux.shape)
+        z_t = variance_preserving_map(flux, g_t[:, None], eps)
         # Compute predicted noise
         eps_hat = self.score_model(
             z_t,
             g_t,
+            freq,
             cond,
             mask,
         )
@@ -152,17 +158,17 @@ class VariationalDiffusionModel(nn.Module):
 
         return loss_diff
 
-    def __call__(self, x, conditioning=None, mask=None):
-        d_batch = x.shape[0]
+    def __call__(self, flux, freq = None, conditioning=None, mask=None):
+        d_batch = flux.shape[0]
 
         # 1. Reconstruction loss
         # Add noise and reconstruct
-        f = x
-        loss_recon = self.recon_loss(x, f, conditioning)
+        flux_rec = flux
+        loss_recon = self.recon_loss(flux, flux_rec)
 
         # 2. Latent loss
         # KL z1 with N(0,1) prior
-        loss_klz = self.latent_loss(f)
+        loss_klz = self.latent_loss(flux_rec)
 
         # 3. Diffusion loss
         # Sample time steps
@@ -177,7 +183,7 @@ class VariationalDiffusionModel(nn.Module):
         if T > 0:
             t = np.ceil(t * T) / T
 
-        loss_diff = self.diffusion_loss(t, f, conditioning, mask)
+        loss_diff = self.diffusion_loss(t, flux_rec, freq, conditioning, mask)
 
         return (loss_diff, loss_klz, loss_recon)
 
@@ -197,7 +203,7 @@ class VariationalDiffusionModel(nn.Module):
         # Decode if using encoder-decoder; otherwise just return last latent distribution
         return tfd.Normal(loc=z0, scale=self.noise_scale)
 
-    def sample_step(self, rng, i, T, z_t, conditioning=None, mask=None):
+    def sample_step(self, rng, i, T, z_t, freq = None,conditioning=None, mask=None):
         """Sample a single step of the diffusion process."""
         rng_body = jax.random.fold_in(rng, i)
         eps = jax.random.normal(rng_body, z_t.shape)
@@ -210,6 +216,7 @@ class VariationalDiffusionModel(nn.Module):
         eps_hat_cond = self.score_model(
             z_t,
             g_t * np.ones((z_t.shape[0],), z_t.dtype),
+            freq,
             cond,
             mask,
         )
@@ -229,12 +236,14 @@ class VariationalDiffusionModel(nn.Module):
         self,
         z_t,
         g_t,
+        freq,
         cond,
         mask,
     ):
         return self.score_model(
-            z=z_t,
+            flux=z_t,
             t=g_t,
+            freq = freq,
             conditioning=cond,
             mask=mask,
         )
