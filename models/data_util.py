@@ -45,6 +45,7 @@ class specdata:
         self.red_time_mean = 0.
         self.red_time_std = 0.
         self.load_data(verbose = verbose)
+        self.num_class = len(self.class_encoding.keys())
 
     def load_data(self, verbose = False):
         for _, row in tqdm(self.master_list.iterrows(), total=len(self.master_list)):
@@ -81,9 +82,9 @@ class specdata:
                 continue
             ### type
             self.class_list.append(row['type']) # type
-            
+            #breakpoint()
             ### spectra
-            wavelength = spectra_pd[0].values * (1. + float(red_shift)) # correct for redshift
+            wavelength = spectra_pd[0].values * (0. if np.isnan( float(red_shift)) else float(red_shift) + 1.) # correct for redshift
             flux = spectra_pd[1].values
     
             # Pad the flux, wavelength, and mask
@@ -172,7 +173,7 @@ class specdata:
         # encode classes
         
         self.class_encoding = {cls: idx for idx, cls in enumerate(set(self.class_list))}
-        self.class_list = [self.class_encoding[cls] for cls in self.class_list]
+        self.class_list = np.array([self.class_encoding[cls] for cls in self.class_list])
             
 
     def get_data(self):

@@ -177,3 +177,6 @@ data/*
 data/set_diffuser_data/*
 scripts/sandbox.py
 scripts/sandbox.sh
+*.sh.log-*
+*.npy 
+*.png

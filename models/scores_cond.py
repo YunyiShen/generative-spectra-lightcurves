@@ -43,7 +43,7 @@ class classcondTransformerScoreNet(nn.Module):
             cond = t_embedding[:, None, :] + freq_embd
         elif self.num_classes > 1:
             conditioning = nn.Embed(self.num_classes,self.score_dict["d_model"])(conditioning)
-            cond = t_embedding[:, None, :] + freq_embd + conditioning
+            cond = t_embedding[:, None, :] + freq_embd + conditioning[:, None, :]
         else:
             raise ValueError(f"there are {self.num_classes} classes, but num_classes must be > 1")
 

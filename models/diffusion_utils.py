@@ -196,3 +196,41 @@ def generate(vdm, params, rng, shape, conditioning=None, mask=None, steps=None):
     var0 = sigma2(g0)
     z0_rescaled = z0 / np.sqrt(1.0 - var0)
     return vdm.apply(params, z0_rescaled, method=vdm.decode)
+
+
+def classcondgenerate(vdm, params, rng, shape, freq = None,conditioning=None, mask=None, steps=None):
+    """Generate samples from a classcondVDM model."""
+
+    # Generate latents
+    rng, spl = jax.random.split(rng)
+
+    # If using a latent projection, use embedding size; otherwise, use feature size
+    zt = jax.random.normal(spl, shape + (vdm.d_feature,))
+    if vdm.timesteps == 0:
+        if steps is None:
+            raise Exception("Need to specify steps argument for continuous-time VLB")
+        else:
+            timesteps = steps
+    else:
+        timesteps = vdm.timesteps
+
+    def body_fn(i, z_t):
+        return vdm.apply(
+            params,
+            rng,
+            i,
+            timesteps,
+            z_t,
+            freq,
+            conditioning,
+            mask=mask,
+            method=vdm.sample_step,
+        )
+
+    z0 = jax.lax.fori_loop(lower=0, upper=timesteps, body_fun=body_fn, init_val=zt)
+
+    g0 = vdm.apply(params, 0.0, method=vdm.gammat)
+    var0 = sigma2(g0)
+    z0_rescaled = z0 / np.sqrt(1.0 - var0)
+    return vdm.apply(params, z0_rescaled, method=vdm.decode)
+
