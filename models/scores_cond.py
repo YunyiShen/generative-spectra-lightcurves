@@ -28,22 +28,22 @@ class classcondTransformerScoreNet(nn.Module):
     adanorm: bool = False
 
     @nn.compact
-    def __call__(self, flux, t, freq , conditioning, mask):
+    def __call__(self, flux, t, wavelength , conditioning, mask):
         assert np.isscalar(t) or len(t.shape) == 0 or len(t.shape) == 1
         t = t * np.ones(flux.shape[0])  # Ensure t is a vector
 
         t_embedding = get_timestep_embedding(t, self.d_t_embedding)
         t_embedding = nn.Dense(self.score_dict["d_model"])(t_embedding)
-        if freq is None:
-            freq_embd = 0.0
+        if wavelength is None:
+            wavelength_embd = 0.0
         else:
-            freq_embd = nn.Dense(self.score_dict["d_model"])(freq)
+            wavelength_embd = nn.Dense(self.score_dict["d_model"])(wavelength)
 
         if conditioning is None:
-            cond = t_embedding[:, None, :] + freq_embd
+            cond = t_embedding[:, None, :] + wavelength_embd
         elif self.num_classes > 1:
             conditioning = nn.Embed(self.num_classes,self.score_dict["d_model"])(conditioning)
-            cond = t_embedding[:, None, :] + freq_embd + conditioning[:, None, :]
+            cond = t_embedding[:, None, :] + wavelength_embd + conditioning[:, None, :]
         else:
             raise ValueError(f"there are {self.num_classes} classes, but num_classes must be > 1")
 
@@ -74,7 +74,7 @@ class photometrycondTransformerScoreNet(nn.Module):
     adanorm: bool = False
 
     @nn.compact
-    def __call__(self, flux, t, freq , mask, 
+    def __call__(self, flux, t, wavelength , mask, 
                  green_flux, green_time, green_mask, 
                  red_flux, red_time, red_mask):
         assert np.isscalar(t) or len(t.shape) == 0 or len(t.shape) == 1
@@ -82,14 +82,14 @@ class photometrycondTransformerScoreNet(nn.Module):
 
         t_embedding = get_timestep_embedding(t, self.d_t_embedding)
         t_embedding = nn.Dense(self.score_dict["d_model"])(t_embedding)
-        freq_embd = nn.Dense(self.score_dict["d_model"])(freq) # embedding frequency
+        wavelength_embd = nn.Dense(self.score_dict["d_model"])(wavelength) # embedding wavelengthuency
 
         # Make copy of score dict since original cannot be in-place modified; remove `score` argument before passing to Net
         score_dict = dict(self.score_dict)
         score_dict.pop("score", None)
 
         if green_time is None or red_time is None:
-            cond = t_embedding[:, None, :] + freq_embd
+            cond = t_embedding[:, None, :] + wavelength_embd
         else:
             # transformer for green and red channels
             green_embd = Transformer(n_input=green_flux.shape[-1], **score_dict)(green_flux, green_time, green_mask)
@@ -98,7 +98,7 @@ class photometrycondTransformerScoreNet(nn.Module):
             red_embd = np.reshape(red_embd, (red_embd.shape[0], -1))
             conditioning = np.concatenate((green_embd, red_embd), axis=1)
             conditioning = nn.Dense(self.score_dict["d_model"])(conditioning)
-            cond = t_embedding[:, None, :] + freq_embd + conditioning[:, None, :]
+            cond = t_embedding[:, None, :] + wavelength_embd + conditioning[:, None, :]
 
         
 

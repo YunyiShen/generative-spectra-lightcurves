@@ -1,6 +1,7 @@
 import dataclasses
 
 import jax
+import flax
 import flax.linen as nn
 import jax.numpy as np
 import tensorflow_probability.substrates.jax as tfp
@@ -93,12 +94,12 @@ class classcondVariationalDiffusionModel(nn.Module):
         else:
             raise NotImplementedError(f"Unknown score model {self.score}")
 
-    def score_eval(self, flux, t, freq,conditioning, mask):
+    def score_eval(self, flux, t, wavelength,conditioning, mask):
         """Evaluate the score model."""
         return self.score_model(
             flux=flux,
             t=t,
-            freq = freq,
+            wavelength = wavelength,
             conditioning=conditioning,
             mask=mask,
         )
@@ -128,7 +129,7 @@ class classcondVariationalDiffusionModel(nn.Module):
         loss_klz = 0.5 * (mean1_sqr + var_1 - np.log(var_1) - 1.0)
         return loss_klz
 
-    def diffusion_loss(self, t, flux, freq, cond, mask):
+    def diffusion_loss(self, t, flux, wavelength, cond, mask):
         """The diffusion loss measures the gap in the intermediate steps."""
         # Sample z_t
         g_t = self.gamma(t)
@@ -138,7 +139,7 @@ class classcondVariationalDiffusionModel(nn.Module):
         eps_hat = self.score_model(
             z_t,
             g_t,
-            freq,
+            wavelength,
             cond,
             mask,
         )
@@ -159,7 +160,7 @@ class classcondVariationalDiffusionModel(nn.Module):
 
         return loss_diff
 
-    def __call__(self, flux, freq = None, conditioning=None, mask=None):
+    def __call__(self, flux, wavelength = None, conditioning=None, mask=None):
         d_batch = flux.shape[0]
 
         # 1. Reconstruction loss
@@ -184,7 +185,7 @@ class classcondVariationalDiffusionModel(nn.Module):
         if T > 0:
             t = np.ceil(t * T) / T
 
-        loss_diff = self.diffusion_loss(t, flux_rec, freq, conditioning, mask)
+        loss_diff = self.diffusion_loss(t, flux_rec, wavelength, conditioning, mask)
 
         return (loss_diff, loss_klz, loss_recon)
 
@@ -204,7 +205,7 @@ class classcondVariationalDiffusionModel(nn.Module):
         # Decode if using encoder-decoder; otherwise just return last latent distribution
         return tfd.Normal(loc=z0, scale=self.noise_scale)
 
-    def sample_step(self, rng, i, T, z_t, freq = None,conditioning=None, mask=None):
+    def sample_step(self, rng, i, T, z_t, wavelength = None,conditioning=None, mask=None):
         """Sample a single step of the diffusion process."""
         rng_body = jax.random.fold_in(rng, i)
         eps = jax.random.normal(rng_body, z_t.shape)
@@ -217,7 +218,7 @@ class classcondVariationalDiffusionModel(nn.Module):
         eps_hat_cond = self.score_model(
             z_t,
             g_t * np.ones((z_t.shape[0],), z_t.dtype),
-            freq,
+            wavelength,
             cond,
             mask,
         )
@@ -237,14 +238,14 @@ class classcondVariationalDiffusionModel(nn.Module):
         self,
         z_t,
         g_t,
-        freq,
+        wavelength,
         cond,
         mask,
     ):
         return self.score_model(
             flux=z_t,
             t=g_t,
-            freq = freq,
+            wavelength = wavelength,
             conditioning=cond,
             mask=mask,
         )
@@ -323,14 +324,14 @@ class photometrycondVariationalDiffusionModel(nn.Module):
         else:
             raise NotImplementedError(f"Unknown score model {self.score}")
 
-    def score_eval(self, flux, t, freq, mask, 
+    def score_eval(self, flux, t, wavelength, mask, 
                    green_flux, green_time, green_mask, 
                    red_flux, red_time, red_mask):
         """Evaluate the score model."""
         return self.score_model(
             flux=flux,
             t=t,
-            freq = freq,
+            wavelength = wavelength,
             mask=mask,
             green_flux=green_flux,
             green_time=green_time,
@@ -365,7 +366,7 @@ class photometrycondVariationalDiffusionModel(nn.Module):
         loss_klz = 0.5 * (mean1_sqr + var_1 - np.log(var_1) - 1.0)
         return loss_klz
 
-    def diffusion_loss(self, t, flux, freq, mask, 
+    def diffusion_loss(self, t, flux, wavelength, mask, 
                        green_flux, green_time, green_mask,
                           red_flux, red_time, red_mask):
         """The diffusion loss measures the gap in the intermediate steps."""
@@ -377,7 +378,7 @@ class photometrycondVariationalDiffusionModel(nn.Module):
         eps_hat = self.score_model(
             z_t,
             g_t,
-            freq,
+            wavelength,
             mask,
             green_flux,
             green_time,
@@ -403,7 +404,7 @@ class photometrycondVariationalDiffusionModel(nn.Module):
 
         return loss_diff
 
-    def __call__(self, flux, freq = None, mask=None,
+    def __call__(self, flux, wavelength = None, mask=None,
                  green_flux=None, green_time=None, green_mask=None,
                     red_flux=None, red_time=None, red_mask=None):
         d_batch = flux.shape[0]
@@ -430,7 +431,7 @@ class photometrycondVariationalDiffusionModel(nn.Module):
         if T > 0:
             t = np.ceil(t * T) / T
 
-        loss_diff = self.diffusion_loss(t, flux_rec, freq, mask, 
+        loss_diff = self.diffusion_loss(t, flux_rec, wavelength, mask, 
                                         green_flux, green_time, green_mask,
                                         red_flux, red_time, red_mask)
                                         
@@ -453,7 +454,7 @@ class photometrycondVariationalDiffusionModel(nn.Module):
         # Decode if using encoder-decoder; otherwise just return last latent distribution
         return tfd.Normal(loc=z0, scale=self.noise_scale)
 
-    def sample_step(self, rng, i, T, z_t, freq = None, mask=None, 
+    def sample_step(self, rng, i, T, z_t, wavelength = None, mask=None, 
                     green_flux=None, green_time=None, green_mask=None,
                     red_flux=None, red_time=None, red_mask=None):
         """Sample a single step of the diffusion process."""
@@ -468,7 +469,7 @@ class photometrycondVariationalDiffusionModel(nn.Module):
         eps_hat_cond = self.score_model(
             z_t,
             g_t * np.ones((z_t.shape[0],), z_t.dtype),
-            freq,
+            wavelength,
             mask,
             green_flux,
             green_time,
@@ -493,7 +494,7 @@ class photometrycondVariationalDiffusionModel(nn.Module):
         self,
         z_t,
         g_t,
-        freq,
+        wavelength,
         mask,
         green_flux,
         green_time,
@@ -505,7 +506,7 @@ class photometrycondVariationalDiffusionModel(nn.Module):
         return self.score_model(
             flux=z_t,
             t=g_t,
-            freq = freq,
+            wavelength = wavelength,
             mask=mask,
             green_flux=green_flux,
             green_time=green_time,

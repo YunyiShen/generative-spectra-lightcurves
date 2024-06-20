@@ -20,7 +20,7 @@ unreplicate = flax.jax_utils.unreplicate
 
 spec_data = specdata(master_list = "../data/ZTFBTS/ZTFBTS_TransientTable_test.csv",
                      verbose = False)
-flux, freq, mask, type,redflux, redtime, redmask, greentime, greenflux, greenmask = spec_data.get_data()
+flux, wavelength, mask, type,redflux, redtime, redmask, greentime, greenflux, greenmask = spec_data.get_data()
 
 # Define the model
 vdm = photometrycondVariationalDiffusionModel(d_feature=1, d_t_embedding=32, 
@@ -28,7 +28,7 @@ vdm = photometrycondVariationalDiffusionModel(d_feature=1, d_t_embedding=32,
                                          noise_schedule="learned_linear",)
 
 init_rngs = {'params': jax.random.key(0), 'sample': jax.random.key(1)}
-out, params = vdm.init_with_output(init_rngs, flux[:2, :, None], freq[:2, :, None], mask[:2], 
+out, params = vdm.init_with_output(init_rngs, flux[:2, :, None], wavelength[:2, :, None], mask[:2], 
                                    greenflux[:2, :, None], greentime[:2, :, None], greenmask[:2], 
                                    redtime[:2, :, None], redflux[:2, :, None], redmask[:2])
 
@@ -54,12 +54,12 @@ def loss_vdm(outputs, masks=None):
     return loss_batch.mean()
 
 @partial(jax.pmap, axis_name="batch",)
-def train_step(state, flux, freq, masks, 
+def train_step(state, flux, wavelength, masks, 
                green_flux, green_time, green_mask, 
                red_time, red_flux, red_mask, key_sample):
     
     def loss_fn(params):
-        outputs = state.apply_fn(params, flux, freq, masks, 
+        outputs = state.apply_fn(params, flux, wavelength, masks, 
                                  green_flux, green_time, green_mask, 
                                  red_time, red_flux, red_mask,
                                  rngs={"sample": key_sample})
@@ -87,13 +87,13 @@ with trange(n_steps) as steps:
 
         idx = jax.random.choice(key, flux.shape[0], shape=(n_batch,))
 
-        fluxes_batch, freq_batch, masks_batch = flux[idx], freq[idx], mask[idx]
+        fluxes_batch, wavelength_batch, masks_batch = flux[idx], wavelength[idx], mask[idx]
         green_fluxes_batch, green_time_batch, green_masks_batch = greenflux[idx], greentime[idx], greenmask[idx]
         red_fluxes_batch, red_time_batch, red_masks_batch = redflux[idx], redtime[idx], redmask[idx]
 
         # Split batches across devices
         fluxes_batch = jax.tree.map(lambda x: np.split(x, num_local_devices, axis=0), fluxes_batch)
-        freq_batch = jax.tree.map(lambda x: np.split(x, num_local_devices, axis=0), freq_batch)
+        wavelength_batch = jax.tree.map(lambda x: np.split(x, num_local_devices, axis=0), wavelength_batch)
         masks_batch = jax.tree.map(lambda x: np.split(x, num_local_devices, axis=0), masks_batch)
 
         green_fluxes_batch = jax.tree.map(lambda x: np.split(x, num_local_devices, axis=0), green_fluxes_batch)
@@ -107,7 +107,7 @@ with trange(n_steps) as steps:
 
         # Convert to np.ndarray
         fluxes_batch = np.array(fluxes_batch)
-        freq_batch = np.array(freq_batch)
+        wavelength_batch = np.array(wavelength_batch)
         masks_batch = np.array(masks_batch)
 
         green_fluxes_batch = np.array(green_fluxes_batch)
@@ -119,7 +119,7 @@ with trange(n_steps) as steps:
         red_masks_batch = np.array(red_masks_batch)
         
         pstate, metrics = train_step(pstate, fluxes_batch[..., None], 
-                                     freq_batch[..., None], masks_batch, 
+                                     wavelength_batch[..., None], masks_batch, 
                                      green_fluxes_batch[..., None],
                                      green_time_batch[..., None],
                                      green_masks_batch,
@@ -135,8 +135,8 @@ from models.diffusion_utils import photometrycondgenerate
 
 # Generate samples
 n_samples = 24
-freq_cond = freq[:1, : np.sum(mask[0])]
-freq_cond = np.linspace(np.min(freq_cond), np.max(freq_cond), 214)[None, ...]
+wavelength_cond = wavelength[:1, : np.sum(mask[0])]
+wavelength_cond = np.linspace(np.min(wavelength_cond), np.max(wavelength_cond), 214)[None, ...]
 
 green_flux_cond = greenflux[:1, :]
 green_time_cond = greentime[:1, :]
@@ -150,9 +150,9 @@ red_mask_cond = redmask[:1, :]
 
 samples = photometrycondgenerate(vdm, unreplicate(pstate).params, 
                             jax.random.PRNGKey(412141), 
-                            (n_samples, len(freq_cond[0])), 
-                            freq_cond[..., None], 
-                            np.ones_like(freq_cond), 
+                            (n_samples, len(wavelength_cond[0])), 
+                            wavelength_cond[..., None], 
+                            np.ones_like(wavelength_cond), 
                             green_flux_cond[..., None],
                             green_time_cond[..., None],
                             green_mask_cond,
@@ -165,7 +165,7 @@ np.save("photometry_samples.npy", samples)
 
 import matplotlib.pyplot as plt
 for i in range(n_samples):
-    plt.plot(freq_cond[0] * spec_data.wavelengths_std + spec_data.wavelengths_mean, 
+    plt.plot(wavelength_cond[0] * spec_data.wavelengths_std + spec_data.wavelengths_mean, 
              samples.mean()[i, :, 0] * spec_data.fluxes_std + spec_data.fluxes_mean) # Generated sample
 
 plt.yscale("log")

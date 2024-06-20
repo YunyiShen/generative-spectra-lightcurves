@@ -180,3 +180,6 @@ scripts/sandbox.sh
 *.sh.log-*
 *.npy 
 *.png
+
+ckpt/*
+scripts/makeplot.py

@@ -11,8 +11,8 @@ class specdata:
     def __init__(self, 
                  master_list = "../data/ZTFBTS/ZTFBTS_TransientTable_train.csv", 
                  light_curves = "../data/ZTFBTS/light-curves",
-                 spectra = "../data/ZTFBTS_spectra",
-                 max_length = 1000, photometry_len = 200, verbose = False):
+                 spectra = "../data/ZTFBTS_spectra_dashed",
+                 max_length = 1024, photometry_len = 256, z_score = True,verbose = False):
         self.master_list = pd.read_csv(master_list, header = 0)
         self.light_curves = light_curves
         self.spectra = spectra
@@ -31,27 +31,31 @@ class specdata:
         self.red_flux = []
         self.red_mask = []
         self.fluxes_mean = 0.
-        self.fluxes_std = 0.
+        self.fluxes_std = 1.
         self.wavelengths_mean = 0.
-        self.wavelengths_std = 0.
+        self.wavelengths_std = 1.
 
         self.red_mean = 0.
-        self.red_std = 0.
+        self.red_std = 1.
         self.green_mean = 0.
-        self.green_std = 0.
+        self.green_std = 1.
 
         self.green_time_mean = 0.
-        self.green_time_std = 0.
+        self.green_time_std = 1.
         self.red_time_mean = 0.
-        self.red_time_std = 0.
+        self.red_time_std = 1.
         self.load_data(verbose = verbose)
         self.num_class = len(self.class_encoding.keys())
+        self.z_score = z_score
+        if z_score:
+            self.normalize()
+
 
     def load_data(self, verbose = False):
         for _, row in tqdm(self.master_list.iterrows(), total=len(self.master_list)):
-            if not os.path.exists(f"{self.spectra}/{row['ZTFID']}.csv"):
+            if not os.path.exists(f"{self.spectra}/{row['ZTFID']}_dashed.csv"):
                 if verbose:
-                    print(f"Skipping {row['ZTFID']} because its spectum doesn't exist")
+                    print(f"Skipping {row['ZTFID']} because its spectrum doesn't exist")
                 continue
             if not os.path.exists(f"{self.light_curves}/{row['ZTFID']}.csv"):
                 if verbose:
@@ -60,7 +64,7 @@ class specdata:
 
 
 
-            spectra_pd = pd.read_csv(f"{self.spectra}/{row['ZTFID']}.csv", header=None)
+            spectra_pd = pd.read_csv(f"{self.spectra}/{row['ZTFID']}_dashed.csv", header=None)
             photometry_pd = pd.read_csv(f"{self.light_curves}/{row['ZTFID']}.csv", header=0)
             green = photometry_pd[photometry_pd['band'] == 'g'][['time','mag']]
             red = photometry_pd[photometry_pd['band'] == 'R'][['time','mag']]
@@ -84,7 +88,7 @@ class specdata:
             self.class_list.append(row['type']) # type
             #breakpoint()
             ### spectra
-            wavelength = spectra_pd[0].values * (0. if np.isnan( float(red_shift)) else float(red_shift) + 1.) # correct for redshift
+            wavelength = spectra_pd[0].values #* (0. if np.isnan( float(red_shift)) else float(red_shift) + 1.) # correct for redshift
             flux = spectra_pd[1].values
     
             # Pad the flux, wavelength, and mask
@@ -144,6 +148,16 @@ class specdata:
         self.green_mask = self.green_mask.astype(bool)
         self.red_mask = self.red_mask.astype(bool)
 
+        # encode classes
+        
+        self.class_encoding = {cls: idx for idx, cls in enumerate(set(self.class_list))}
+        self.class_list = np.array([self.class_encoding[cls] for cls in self.class_list])
+            
+
+    def get_data(self):
+        return self.fluxes, self.wavelengths, self.masks, self.class_list, self.green_flux, self.green_time, self.green_mask, self.red_flux, self.red_time, self.red_mask
+    
+    def normalize(self):
         # Normalize the fluxes and wavelengths
         self.fluxes_mean = np.mean(self.fluxes)
         self.fluxes_std = np.std(self.fluxes)
@@ -169,12 +183,3 @@ class specdata:
         self.red_flux = (self.red_flux - self.red_mean) / self.red_std
         self.green_time = (self.green_time - self.green_time_mean) / self.green_time_std
         self.red_time = (self.red_time - self.red_time_mean) / self.red_time_std
-
-        # encode classes
-        
-        self.class_encoding = {cls: idx for idx, cls in enumerate(set(self.class_list))}
-        self.class_list = np.array([self.class_encoding[cls] for cls in self.class_list])
-            
-
-    def get_data(self):
-        return self.fluxes, self.wavelengths, self.masks, self.class_list, self.green_flux, self.green_time, self.green_mask, self.red_flux, self.red_time, self.red_mask

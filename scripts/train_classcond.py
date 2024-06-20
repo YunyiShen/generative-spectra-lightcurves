@@ -11,6 +11,11 @@ import optax
 from tqdm import trange
 import pandas as pd
 
+from flax.training import checkpoints, train_state
+from flax import struct, serialization
+import orbax.checkpoint
+
+
 from models.data_util import specdata
 from models.diffusion_cond import classcondVariationalDiffusionModel
 from models.transformer import Transformer
@@ -21,7 +26,7 @@ unreplicate = flax.jax_utils.unreplicate
 
 spec_data = specdata(master_list = "../data/ZTFBTS/ZTFBTS_TransientTable_train.csv",
                      verbose = False)
-flux, freq, mask, type,redflux, redtime, redmask, greentime, greenflux, greenmask = spec_data.get_data()
+flux, wavelength, mask, type,redflux, redtime, redmask, greentime, greenflux, greenmask = spec_data.get_data()
 
 # Define the model
 vdm = classcondVariationalDiffusionModel(d_feature=1, d_t_embedding=32, 
@@ -30,7 +35,7 @@ vdm = classcondVariationalDiffusionModel(d_feature=1, d_t_embedding=32,
                                          num_classes=spec_data.num_class,)
 
 init_rngs = {'params': jax.random.key(0), 'sample': jax.random.key(1)}
-out, params = vdm.init_with_output(init_rngs, flux[:2, :, None], freq[:2, :, None], type[:2], mask[:2])
+out, params = vdm.init_with_output(init_rngs, flux[:2, :, None], wavelength[:2, :, None], type[:2], mask[:2])
 
 schedule = optax.warmup_cosine_decay_schedule(
     init_value=0.0,
@@ -54,10 +59,10 @@ def loss_vdm(outputs, masks=None):
     return loss_batch.mean()
 
 @partial(jax.pmap, axis_name="batch",)
-def train_step(state, flux, freq, cond, masks, key_sample):
+def train_step(state, flux, wavelength, cond, masks, key_sample):
     
     def loss_fn(params):
-        outputs = state.apply_fn(params, flux, freq, cond,masks, rngs={"sample": key_sample})
+        outputs = state.apply_fn(params, flux, wavelength, cond,masks, rngs={"sample": key_sample})
         loss = loss_vdm(outputs, masks)
         
         return loss
@@ -69,7 +74,7 @@ def train_step(state, flux, freq, cond, masks, key_sample):
     metrics = {"loss": jax.lax.pmean(loss, "batch")}
     return new_state, metrics
 
-n_steps = 3000
+n_steps = 5000
 n_batch = 32
 
 key = jax.random.PRNGKey(0)
@@ -82,21 +87,21 @@ with trange(n_steps) as steps:
 
         idx = jax.random.choice(key, flux.shape[0], shape=(n_batch,))
 
-        fluxes_batch, freq_batch, cond_batch, masks_batch = flux[idx], freq[idx], type[idx], mask[idx]
+        fluxes_batch, wavelength_batch, cond_batch, masks_batch = flux[idx], wavelength[idx], type[idx], mask[idx]
 
         # Split batches across devices
         fluxes_batch = jax.tree.map(lambda x: np.split(x, num_local_devices, axis=0), fluxes_batch)
-        freq_batch = jax.tree.map(lambda x: np.split(x, num_local_devices, axis=0), freq_batch)
+        wavelength_batch = jax.tree.map(lambda x: np.split(x, num_local_devices, axis=0), wavelength_batch)
         cond_batch = jax.tree.map(lambda x: np.split(x, num_local_devices, axis=0), cond_batch)
         masks_batch = jax.tree.map(lambda x: np.split(x, num_local_devices, axis=0), masks_batch)
 
         # Convert to np.ndarray
         fluxes_batch = np.array(fluxes_batch)
-        freq_batch = np.array(freq_batch)
+        wavelength_batch = np.array(wavelength_batch)
         cond_batch = np.array(cond_batch)
         masks_batch = np.array(masks_batch)
         
-        pstate, metrics = train_step(pstate, fluxes_batch[..., None], freq_batch[..., None], cond_batch,masks_batch, train_step_key)
+        pstate, metrics = train_step(pstate, fluxes_batch[..., None], wavelength_batch[..., None], cond_batch,masks_batch, train_step_key)
         #breakpoint()
         steps.set_postfix(loss=unreplicate(metrics["loss"]))
 
@@ -104,31 +109,51 @@ with trange(n_steps) as steps:
 from models.diffusion_utils import classcondgenerate
 
 # Generate samples
-n_samples = 24
-freq_cond = freq[:1, : np.sum(mask[0])]
-freq_cond = np.linspace(np.min(freq_cond), np.max(freq_cond), 214)[None, ...]
+n_samples = 12
+wavelength_cond = wavelength[:1, : np.sum(mask[0])]
+wavelength_cond = np.linspace(np.min(wavelength_cond), np.max(wavelength_cond), 214)[None, ...]
 type_cond = np.array([spec_data.class_encoding['SN Ia']])
 
 
 
 samples = classcondgenerate(vdm, unreplicate(pstate).params, 
                             jax.random.PRNGKey(412141), 
-                            (n_samples, len(freq_cond[0])), 
-                            freq_cond[..., None], 
+                            (n_samples, len(wavelength_cond[0])), 
+                            wavelength_cond[..., None], 
                             type_cond,
-                            np.ones_like(freq_cond), steps=200)
+                            np.ones_like(wavelength_cond), steps=200)
 
-np.save("Ia_samples.npy", samples)
+np.save("Ia_samples.npy", samples.mean()[:, :, 0] * spec_data.fluxes_std + spec_data.fluxes_mean)
+np.save("Ia_wavelength.npy", wavelength_cond[0]* spec_data.wavelengths_std + spec_data.wavelengths_mean)
 
 import matplotlib.pyplot as plt
 for i in range(n_samples):
-    plt.plot(freq_cond[0] * spec_data.wavelengths_std + spec_data.wavelengths_mean, 
+    plt.plot(wavelength_cond[0] * spec_data.wavelengths_std + spec_data.wavelengths_mean, 
              samples.mean()[i, :, 0] * spec_data.fluxes_std + spec_data.fluxes_mean) # Generated sample
 
-plt.yscale("log")
+#plt.yscale("log")
 plt.title("Generated spectra")
-plt.savefig('Ia_samples.png')  # You can specify different file formats like 'plot.pdf', 'plot.jpg', etc.
-
-# Optionally, close the plot to free memory
+plt.savefig('Ia_samples.png')  
 plt.close()
 
+# save parameters
+np.save("../ckpt/calsscond_static_dict_param",unreplicate(pstate).params)
+# this is not an elegant solution but I cannot save checkpoint on supercloud
+
+
+
+'''
+from flax.training import orbax_utils
+
+ckpt = {'model': unreplicate(pstate)}
+
+orbax_checkpointer = orbax.checkpoint.PyTreeCheckpointer()
+save_args = orbax_utils.save_args_from_target(ckpt)
+ckpt_dir = '../ckpt/class_cond_dashed'
+import os
+import shutil
+if os.path.exists(ckpt_dir):
+    shutil.rmtree(ckpt_dir)  # Remove any existing checkpoints from the last notebook run.
+breakpoint()
+orbax_checkpointer.save(os.path.abspath(ckpt_dir), ckpt, save_args=save_args)
+'''

@@ -198,7 +198,7 @@ def generate(vdm, params, rng, shape, conditioning=None, mask=None, steps=None):
     return vdm.apply(params, z0_rescaled, method=vdm.decode)
 
 
-def classcondgenerate(vdm, params, rng, shape, freq = None,conditioning=None, mask=None, steps=None):
+def classcondgenerate(vdm, params, rng, shape, wavelength = None,conditioning=None, mask=None, steps=None):
     """Generate samples from a classcondVDM model."""
 
     # Generate latents
@@ -221,7 +221,7 @@ def classcondgenerate(vdm, params, rng, shape, freq = None,conditioning=None, ma
             i,
             timesteps,
             z_t,
-            freq,
+            wavelength,
             conditioning,
             mask=mask,
             method=vdm.sample_step,
@@ -234,7 +234,7 @@ def classcondgenerate(vdm, params, rng, shape, freq = None,conditioning=None, ma
     z0_rescaled = z0 / np.sqrt(1.0 - var0)
     return vdm.apply(params, z0_rescaled, method=vdm.decode)
 
-def photometrycondgenerate(vdm, params, rng, shape, freq = None, mask=None, 
+def photometrycondgenerate(vdm, params, rng, shape, wavelength = None, mask=None, 
                             green_flux = None, green_time = None, green_mask = None,
                             red_time = None, red_flux = None, red_mask = None, steps=None):
     """Generate samples from a classcondVDM model."""
@@ -259,7 +259,7 @@ def photometrycondgenerate(vdm, params, rng, shape, freq = None, mask=None,
             i,
             timesteps,
             z_t,
-            freq,
+            wavelength,
             mask=mask,
             green_flux=green_flux,
             green_time=green_time,
