@@ -32,12 +32,15 @@ class classcondTransformerScoreNet(nn.Module):
         assert np.isscalar(t) or len(t.shape) == 0 or len(t.shape) == 1
         t = t * np.ones(flux.shape[0])  # Ensure t is a vector
 
-        t_embedding = get_timestep_embedding(t, self.d_t_embedding)
-        t_embedding = nn.Dense(self.score_dict["d_model"])(t_embedding)
+        #t_embedding = get_timestep_embedding(t, self.d_t_embedding)    
+        #t_embedding = nn.Dense(self.score_dict["d_model"])(t_embedding)
+        t_embedding = np.sin( nn.Dense(self.score_dict["d_model"])(t[:,None]))
+        #breakpoint()
         if wavelength is None:
             wavelength_embd = 0.0
         else:
-            wavelength_embd = nn.Dense(self.score_dict["d_model"])(wavelength)
+            wavelength_embd = np.sin(nn.Dense(self.score_dict["d_model"])(wavelength))
+            #breakpoint()
 
         if conditioning is None:
             cond = t_embedding[:, None, :] + wavelength_embd

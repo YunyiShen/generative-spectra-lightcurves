@@ -74,7 +74,7 @@ def train_step(state, flux, wavelength, cond, masks, key_sample):
     metrics = {"loss": jax.lax.pmean(loss, "batch")}
     return new_state, metrics
 
-n_steps = 5000
+n_steps = 4000
 n_batch = 32
 
 key = jax.random.PRNGKey(0)
@@ -123,8 +123,8 @@ samples = classcondgenerate(vdm, unreplicate(pstate).params,
                             type_cond,
                             np.ones_like(wavelength_cond), steps=200)
 
-np.save("Ia_samples.npy", samples.mean()[:, :, 0] * spec_data.fluxes_std + spec_data.fluxes_mean)
-np.save("Ia_wavelength.npy", wavelength_cond[0]* spec_data.wavelengths_std + spec_data.wavelengths_mean)
+np.save("Ia_samples_sine.npy", samples.mean()[:, :, 0] * spec_data.fluxes_std + spec_data.fluxes_mean)
+np.save("Ia_wavelength_sine.npy", wavelength_cond[0]* spec_data.wavelengths_std + spec_data.wavelengths_mean)
 
 import matplotlib.pyplot as plt
 for i in range(n_samples):
@@ -133,11 +133,11 @@ for i in range(n_samples):
 
 #plt.yscale("log")
 plt.title("Generated spectra")
-plt.savefig('Ia_samples.png')  
+plt.savefig('Ia_samples_sine.png')  
 plt.close()
 
 # save parameters
-np.save("../ckpt/calsscond_static_dict_param",unreplicate(pstate).params)
+np.save("../ckpt/calsscond_static_dict_param_sine",unreplicate(pstate).params)
 # this is not an elegant solution but I cannot save checkpoint on supercloud
 
 
