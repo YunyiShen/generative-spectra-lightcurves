@@ -7,7 +7,7 @@ import flax.linen as nn
 from models.transformer import Transformer
 from models.mlp import MLP
 
-from models.diffusion_utils import get_timestep_embedding
+from models.diffusion_utils import get_timestep_embedding,get_sinusoidal_embedding
 
 from functools import partial
 
@@ -16,6 +16,7 @@ class classcondTransformerScoreNet(nn.Module):
     """Transformer score network."""
 
     d_t_embedding: int = 32
+    d_wave_embedding: int = 64
     score_dict: dict = dataclasses.field(
         default_factory=lambda: {
             "d_model": 256,
@@ -32,15 +33,22 @@ class classcondTransformerScoreNet(nn.Module):
         assert np.isscalar(t) or len(t.shape) == 0 or len(t.shape) == 1
         t = t * np.ones(flux.shape[0])  # Ensure t is a vector
 
-        #t_embedding = get_timestep_embedding(t, self.d_t_embedding)    
-        #t_embedding = nn.Dense(self.score_dict["d_model"])(t_embedding)
-        t_embedding = np.sin( nn.Dense(self.score_dict["d_model"])(t[:,None]))
+        t_embedding = get_timestep_embedding(t, self.d_t_embedding)    
+        t_embedding = nn.gelu(nn.Dense(self.score_dict["d_model"])(t_embedding))
+        t_embedding = nn.Dense(self.score_dict["d_model"])(t_embedding)
+        #t_embedding = np.sin( nn.Dense(self.score_dict["d_model"])(t[:,None]))
         #breakpoint()
         if wavelength is None:
             wavelength_embd = 0.0
         else:
-            wavelength_embd = np.sin(nn.Dense(self.score_dict["d_model"])(wavelength))
-            #breakpoint()
+            #wavelength_embd = np.sin(nn.Dense(self.score_dict["d_model"])(wavelength))
+            
+            # simusoidal -- MLP, follow the time embedding from DiT paper
+            wavelength_embd = get_sinusoidal_embedding(wavelength, self.d_wave_embedding)
+            wavelength_embd = nn.gelu(nn.Dense(self.score_dict["d_model"])(wavelength_embd))
+            wavelength_embd = nn.Dense(self.score_dict["d_model"])(wavelength_embd)
+
+            
 
         if conditioning is None:
             cond = t_embedding[:, None, :] + wavelength_embd

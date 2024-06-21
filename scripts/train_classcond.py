@@ -74,7 +74,7 @@ def train_step(state, flux, wavelength, cond, masks, key_sample):
     metrics = {"loss": jax.lax.pmean(loss, "batch")}
     return new_state, metrics
 
-n_steps = 4000
+n_steps = 5000
 n_batch = 32
 
 key = jax.random.PRNGKey(0)
@@ -109,7 +109,7 @@ with trange(n_steps) as steps:
 from models.diffusion_utils import classcondgenerate
 
 # Generate samples
-n_samples = 12
+n_samples = 100
 wavelength_cond = wavelength[:1, : np.sum(mask[0])]
 wavelength_cond = np.linspace(np.min(wavelength_cond), np.max(wavelength_cond), 214)[None, ...]
 type_cond = np.array([spec_data.class_encoding['SN Ia']])
