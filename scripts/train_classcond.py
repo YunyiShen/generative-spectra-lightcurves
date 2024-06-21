@@ -29,10 +29,19 @@ spec_data = specdata(master_list = "../data/ZTFBTS/ZTFBTS_TransientTable_train.c
 flux, wavelength, mask, type,redflux, redtime, redmask, greentime, greenflux, greenmask = spec_data.get_data()
 
 # Define the model
+score_dict = {
+            "d_model": 256,
+            "d_mlp": 512,
+            "n_layers": 4,
+            "n_heads": 4,
+            "concat_conditioning": False,
+        }
 vdm = classcondVariationalDiffusionModel(d_feature=1, d_t_embedding=32, 
                                          noise_scale=1e-4, 
                                          noise_schedule="learned_linear",
-                                         num_classes=spec_data.num_class,)
+                                         num_classes=spec_data.num_class,
+                                         score_dict = score_dict,
+                                         )
 
 init_rngs = {'params': jax.random.key(0), 'sample': jax.random.key(1)}
 out, params = vdm.init_with_output(init_rngs, flux[:2, :, None], wavelength[:2, :, None], type[:2], mask[:2])
@@ -74,7 +83,7 @@ def train_step(state, flux, wavelength, cond, masks, key_sample):
     metrics = {"loss": jax.lax.pmean(loss, "batch")}
     return new_state, metrics
 
-n_steps = 5000
+n_steps = 6000
 n_batch = 32
 
 key = jax.random.PRNGKey(0)

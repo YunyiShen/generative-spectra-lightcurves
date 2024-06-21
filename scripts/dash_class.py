@@ -1,10 +1,8 @@
 import numpy as np
 import astrodash
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
-#################################
-### things related to calibration
-#################################
 def extract_just_class(stringarray):
     '''
     Args: a np.array of strings, that has form of '<something I want>: <something I don't want>'
@@ -50,16 +48,23 @@ def predict_just_class_for_one_star(filenames, redshift,
     return bestTypes[0], softmaxes[0]
 
 
-wavelength = np.load("Ia_wavelength.npy")
-samples = np.load("Ia_samples.npy")
+wavelength = np.load("Ia_wavelength_sine.npy")
+samples = np.load("Ia_samples_sine.npy")
 
 Ia_counter = 0
-for i in range(12):
+plt.figure(figsize=(10, 5))
+for i in range(100):
     #breakpoint()
     spectra = np.array([[wavelength],[samples[i]]])[:,0,:]
     thetype, thescore =  predict_just_class_for_one_star(spectra, 0.0)
     print(thetype[np.argsort(thescore)], thescore[np.argsort(thescore)])
-    if thetype[np.argsort(thescore)][-1] == "Ia":
+    if "Ia" in thetype[np.argsort(thescore)][-1]:
         Ia_counter += 1
+        plt.plot(wavelength, samples[i], alpha=0.8)
+plt.xlabel("Wavelength")
+plt.ylabel("Flux")
+plt.title("Generated SN Ia samples (dash confirmed)")
+plt.show()
+plt.savefig("Ia_samples_sine_dash.png")
     
 print(Ia_counter)

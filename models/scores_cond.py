@@ -23,6 +23,7 @@ class classcondTransformerScoreNet(nn.Module):
             "d_mlp": 512,
             "n_layers": 4,
             "n_heads": 4,
+            "concat_conditioning": False,
         }
     )
     num_classes: int = None # number of classes for conditioning, if conditing
@@ -61,7 +62,7 @@ class classcondTransformerScoreNet(nn.Module):
         # Make copy of score dict since original cannot be in-place modified; remove `score` argument before passing to Net
         score_dict = dict(self.score_dict)
         score_dict.pop("score", None)
-
+        #breakpoint()
         h = Transformer(n_input=flux.shape[-1], **score_dict)(flux, cond, mask)
 
         return flux + h

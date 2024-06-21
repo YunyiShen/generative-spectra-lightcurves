@@ -87,35 +87,42 @@ class Transformer(nn.Module):
     n_heads: int = 4
     induced_attention: bool = False
     n_inducing_points: int = 32
+    concat_conditioning: bool = False
 
     @nn.compact
     def __call__(self, x: np.ndarray, conditioning: np.ndarray = None, mask=None):
         # Input embedding
         x = nn.Dense(int(self.d_model))(x)  # (batch, seq_len, d_model)
-
+        if conditioning is not None:   
+            if self.concat_conditioning:
+                x = np.concatenate([x, conditioning], axis=-1)
         # Transformer layers
         for _ in range(self.n_layers):
             if conditioning is not None:
-                x += conditioning  # (batch, seq_len, d_model)
+                if not self.concat_conditioning:
+                    x += conditioning  # (batch, seq_len, d_model)
+                #breakpoint()
+
             if not self.induced_attention:  # Vanilla self-attention
                 mask_attn = (
                     None if mask is None else mask[..., None] * mask[..., None, :]
                 )
                 x = MultiHeadAttentionBlock(
                     n_heads=self.n_heads,
-                    d_model=self.d_model,
+                    d_model= (1 + self.concat_conditioning) * self.d_model,
                     d_mlp=self.d_mlp,
                 )(x, x, mask_attn, conditioning)
             else:  # Induced attention from set transformer paper
                 h = PoolingByMultiHeadAttention(
                     self.n_inducing_points,
                     self.n_heads,
-                    d_model=self.d_model,
+                    d_model=(1 + self.concat_conditioning) * self.d_model,
                     d_mlp=self.d_mlp,
                 )(x, mask)
                 mask_attn = None if mask is None else mask[..., None]
                 x = MultiHeadAttentionBlock(
-                    n_heads=self.n_heads, d_model=self.d_model, d_mlp=self.d_mlp
+                    n_heads=self.n_heads, d_model=(1 + self.concat_conditioning) * self.d_model, 
+                            d_mlp=self.d_mlp
                 )(x, h, mask_attn)
         # Final LN as in pre-LN configuration
         x = nn.LayerNorm()(x)
