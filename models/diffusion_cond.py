@@ -291,6 +291,7 @@ class photometrycondVariationalDiffusionModel(nn.Module):
             "d_mlp": 512,
             "n_layers": 4,
             "n_heads": 4,
+            "concat_conditioning": False,
         }
     )
     scale_non_linear_init: bool = False

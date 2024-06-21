@@ -52,18 +52,24 @@ wavelength = np.load("Ia_wavelength_sine.npy")
 samples = np.load("Ia_samples_sine.npy")
 
 Ia_counter = 0
-plt.figure(figsize=(10, 5))
-for i in range(100):
+fig, ax = plt.subplots(2, 1, figsize=(10, 10))
+for i in range(4,24):
     #breakpoint()
     spectra = np.array([[wavelength],[samples[i]]])[:,0,:]
     thetype, thescore =  predict_just_class_for_one_star(spectra, 0.0)
     print(thetype[np.argsort(thescore)], thescore[np.argsort(thescore)])
     if "Ia" in thetype[np.argsort(thescore)][-1]:
         Ia_counter += 1
-        plt.plot(wavelength, samples[i], alpha=0.8)
-plt.xlabel("Wavelength")
-plt.ylabel("Flux")
-plt.title("Generated SN Ia samples (dash confirmed)")
+        ax[0].plot(wavelength, samples[i], alpha=0.8)
+    else:
+        ax[1].plot(wavelength, samples[i], alpha=0.8)
+
+ax[0].set_xlabel("Wavelength")
+ax[0].set_ylabel("Flux")
+ax[1].set_xlabel("Wavelength")
+ax[1].set_ylabel("Flux")
+ax[0].set_title("Generated SN Ia samples (dash confirmed)")
+ax[1].set_title("Generated SN Ia samples (dash disagreed)")
 plt.show()
 plt.savefig("Ia_samples_sine_dash.png")
     
