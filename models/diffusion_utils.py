@@ -254,9 +254,47 @@ def classcondgenerate(vdm, params, rng, shape, wavelength = None,conditioning=No
     z0_rescaled = z0 / np.sqrt(1.0 - var0)
     return vdm.apply(params, z0_rescaled, method=vdm.decode)
 
+def classtimecondgenerate(vdm, params, rng, shape, wavelength = None, spectime = None, conditioning=None, mask=None, steps=None):
+    """Generate samples from a classcondVDM model."""
+
+    # Generate latents
+    rng, spl = jax.random.split(rng)
+
+    # If using a latent projection, use embedding size; otherwise, use feature size
+    zt = jax.random.normal(spl, shape + (vdm.d_feature,))
+    if vdm.timesteps == 0:
+        if steps is None:
+            raise Exception("Need to specify steps argument for continuous-time VLB")
+        else:
+            timesteps = steps
+    else:
+        timesteps = vdm.timesteps
+
+    def body_fn(i, z_t):
+        return vdm.apply(
+            params,
+            rng,
+            i,
+            timesteps,
+            z_t,
+            wavelength,
+            spectime,
+            conditioning,
+            mask=mask,
+            method=vdm.sample_step,
+        )
+
+    z0 = jax.lax.fori_loop(lower=0, upper=timesteps, body_fun=body_fn, init_val=zt)
+
+    g0 = vdm.apply(params, 0.0, method=vdm.gammat)
+    var0 = sigma2(g0)
+    z0_rescaled = z0 / np.sqrt(1.0 - var0)
+    return vdm.apply(params, z0_rescaled, method=vdm.decode)
+
+
 def photometrycondgenerate(vdm, params, rng, shape, wavelength = None, mask=None, 
-                            green_flux = None, green_time = None, green_mask = None,
-                            red_time = None, red_flux = None, red_mask = None, steps=None):
+                    photometric_flux=None, photometric_time=None, 
+                    photometric_wavelength = None,photometric_mask=None, steps=None):
     """Generate samples from a classcondVDM model."""
 
     # Generate latents
@@ -281,12 +319,10 @@ def photometrycondgenerate(vdm, params, rng, shape, wavelength = None, mask=None
             z_t,
             wavelength,
             mask=mask,
-            green_flux=green_flux,
-            green_time=green_time,
-            green_mask=green_mask,
-            red_time=red_time,
-            red_flux=red_flux,
-            red_mask=red_mask,
+            photometric_flux=photometric_flux,
+            photometric_time=photometric_time,
+            photometric_wavelength = photometric_wavelength,
+            photometric_mask=photometric_mask,
             method=vdm.sample_step,
         )
 

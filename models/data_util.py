@@ -12,7 +12,8 @@ class specdata:
                  master_list = "../data/ZTFBTS/ZTFBTS_TransientTable_train.csv", 
                  light_curves = "../data/ZTFBTS/light-curves",
                  spectra = "../data/ZTFBTS_spectra_dashed",
-                 max_length = 1024, photometry_len = 256, z_score = True,verbose = False):
+                 max_length = 1024, photometry_len = 256, 
+                 z_score = True, spectime = False, verbose = False):
         self.master_list = pd.read_csv(master_list, header = 0)
         self.light_curves = light_curves
         self.spectra = spectra
@@ -44,6 +45,12 @@ class specdata:
         self.green_time_std = 1.
         self.red_time_mean = 0.
         self.red_time_std = 1.
+        
+        self.spectime = spectime
+        self.spectime_list = []
+        self.spectime_mean = 0.
+        self.spectime_std = 1.
+
         self.load_data(verbose = verbose)
         self.num_class = len(self.class_encoding.keys())
         self.z_score = z_score
@@ -86,6 +93,8 @@ class specdata:
                 continue
             ### type
             self.class_list.append(row['type']) # type
+            if self.spectime:
+                self.spectime_list.append(row['Spectrum_Date_(MJD)'])
             #breakpoint()
             ### spectra
             wavelength = spectra_pd[0].values #* (0. if np.isnan( float(red_shift)) else float(red_shift) + 1.) # correct for redshift
@@ -152,10 +161,21 @@ class specdata:
         
         self.class_encoding = {cls: idx for idx, cls in enumerate(set(self.class_list))}
         self.class_list = np.array([self.class_encoding[cls] for cls in self.class_list])
+
+        if self.spectime:
+            self.spectime_list = np.array(self.spectime_list)
             
 
-    def get_data(self):
-        return self.fluxes, self.wavelengths, self.masks, self.class_list, self.green_flux, self.green_time, self.green_mask, self.red_flux, self.red_time, self.red_mask
+    def get_data(self, concat_photometry = False):
+        if concat_photometry:
+            if self.spectime:
+                return self.fluxes, self.wavelengths, self.masks, self.class_list, self.spectime_list, np.concatenate([self.green_flux, self.red_flux], axis = 1), np.concatenate([self.green_time, self.red_time], axis = 1), np.concatenate([self.green_mask, self.red_mask], axis = 1)
+            else:
+                return self.fluxes, self.wavelengths, self.masks, self.class_list, np.concatenate([self.green_flux, self.red_flux], axis = 1), np.concatenate([self.green_time, self.red_time], axis = 1), np.concatenate([self.green_mask, self.red_mask], axis = 1)
+        else:
+            if self.spectime:
+                return self.fluxes, self.wavelengths, self.masks, self.class_list, self.spectime_list, self.green_flux, self.green_time, self.green_mask, self.red_flux, self.red_time, self.red_mask
+            return self.fluxes, self.wavelengths, self.masks, self.class_list, self.green_flux, self.green_time, self.green_mask, self.red_flux, self.red_time, self.red_mask
     
     def normalize(self):
         # Normalize the fluxes and wavelengths
@@ -183,3 +203,8 @@ class specdata:
         self.red_flux = (self.red_flux - self.red_mean) / self.red_std
         self.green_time = (self.green_time - self.green_time_mean) / self.green_time_std
         self.red_time = (self.red_time - self.red_time_mean) / self.red_time_std
+
+        if self.spectime:
+            self.spectime_mean = np.mean(self.spectime_list)
+            self.spectime_std = np.std(self.spectime_list)
+            self.spectime_list = (self.spectime_list - self.spectime_mean) / self.spectime_std
