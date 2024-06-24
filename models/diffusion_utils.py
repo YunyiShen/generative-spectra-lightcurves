@@ -292,7 +292,7 @@ def classtimecondgenerate(vdm, params, rng, shape, wavelength = None, spectime =
     return vdm.apply(params, z0_rescaled, method=vdm.decode)
 
 
-def photometrycondgenerate(vdm, params, rng, shape, wavelength = None, mask=None, 
+def photometrycondgenerate(vdm, params, rng, shape, wavelength = None, spectime = None,mask=None, 
                     photometric_flux=None, photometric_time=None, 
                     photometric_wavelength = None,photometric_mask=None, steps=None):
     """Generate samples from a classcondVDM model."""
@@ -318,6 +318,7 @@ def photometrycondgenerate(vdm, params, rng, shape, wavelength = None, mask=None
             timesteps,
             z_t,
             wavelength,
+            spectime,
             mask=mask,
             photometric_flux=photometric_flux,
             photometric_time=photometric_time,

@@ -111,7 +111,7 @@ class classtimecondTransformerScoreNet(nn.Module):
         if spectime is None:
             spectime_embd = 0.0
         else:
-            spectime_embd = get_sinusoidal_embedding(spectime[:,:,None], self.d_spectime_embedding)
+            spectime_embd = get_sinusoidal_embedding(spectime, self.d_spectime_embedding)
             spectime_embd = nn.gelu(nn.Dense(self.score_dict["d_model"])(spectime_embd))
             spectime_embd = nn.Dense(self.score_dict["d_model"])(spectime_embd)
 
@@ -140,6 +140,7 @@ class photometrycondTransformerScoreNet(nn.Module):
 
     d_t_embedding: int = 32
     d_wave_embedding: int = 64
+    d_spectime_embedding: int = 64
     d_photometrictime_embedding: int = 64
     score_dict: dict = dataclasses.field(
         default_factory=lambda: {
@@ -153,7 +154,7 @@ class photometrycondTransformerScoreNet(nn.Module):
     adanorm: bool = False
 
     @nn.compact
-    def __call__(self, flux, t, wavelength , mask, 
+    def __call__(self, flux, t, wavelength , spectime, mask, 
                  photometric_flux, photometric_time, 
                  photometric_mask, photometric_wavelength): 
         assert np.isscalar(t) or len(t.shape) == 0 or len(t.shape) == 1
@@ -164,9 +165,18 @@ class photometrycondTransformerScoreNet(nn.Module):
         t_embedding = nn.Dense(self.score_dict["d_model"])(t_embedding)
         #t_embedding = np.sin( nn.Dense(self.score_dict["d_model"])(t[:,None]))
         #breakpoint()
+
+
+        # time at spectrum taken, embeded differently from photometry since they might have different length scale
+        if spectime is None:
+            spectime_embd = 0.0
+        else:
+            spectime_embd = get_sinusoidal_embedding(spectime, self.d_spectime_embedding)
+            spectime_embd = nn.gelu(nn.Dense(self.score_dict["d_model"])(spectime_embd))
+            spectime_embd = nn.Dense(self.score_dict["d_model"])(spectime_embd)
         
             
-        # sinusoidal -- MLP, follow the time embedding from DiT paper
+        # sinusoidal -- MLP, follow the time embedding from DiT paper, embeded the same for photometry and spectrum
         wave_mlp = MLP([self.score_dict['d_model'], self.score_dict['d_model']], activation=nn.gelu)
 
         wavelength_embd = get_sinusoidal_embedding(wavelength, self.d_wave_embedding)
@@ -177,7 +187,7 @@ class photometrycondTransformerScoreNet(nn.Module):
         score_dict.pop("score", None)
 
         if photometric_flux is None:
-            cond = t_embedding[:, None, :] + wavelength_embd
+            cond = t_embedding[:, None, :] + wavelength_embd + spectime_embd
         else:
             # transformer for green and red channels
             photometric_time_embd = get_sinusoidal_embedding(photometric_time, self.d_photometrictime_embedding)
@@ -195,7 +205,7 @@ class photometrycondTransformerScoreNet(nn.Module):
             
             conditioning = nn.gelu(nn.Dense(self.score_dict["d_model"])(photometric_embd))
             conditioning = nn.Dense(self.score_dict["d_model"])(conditioning)
-            cond = t_embedding[:, None, :] + wavelength_embd + conditioning[:, None, :]
+            cond = t_embedding[:, None, :] + wavelength_embd + spectime_embd + conditioning[:, None, :]
 
         
 

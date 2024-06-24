@@ -570,7 +570,7 @@ class photometrycondVariationalDiffusionModel(nn.Module):
         else:
             raise NotImplementedError(f"Unknown score model {self.score}")
 
-    def score_eval(self, flux, t, wavelength, mask, 
+    def score_eval(self, flux, t, wavelength, spectime, mask, 
                    photometric_flux, photometric_time, 
                    photometric_wavelength,photometric_mask):
         """Evaluate the score model."""
@@ -578,6 +578,7 @@ class photometrycondVariationalDiffusionModel(nn.Module):
             flux=flux,
             t=t,
             wavelength = wavelength,
+            spectime = spectime, 
             mask=mask,
             photometric_flux=photometric_flux,
             photometric_time=photometric_time,
@@ -610,7 +611,7 @@ class photometrycondVariationalDiffusionModel(nn.Module):
         loss_klz = 0.5 * (mean1_sqr + var_1 - np.log(var_1) - 1.0)
         return loss_klz
 
-    def diffusion_loss(self, t, flux, wavelength, mask, 
+    def diffusion_loss(self, t, flux, wavelength, spectime, mask, 
                        photometric_flux, photometric_time, photometric_wavelength,photometric_mask):
         """The diffusion loss measures the gap in the intermediate steps."""
         # Sample z_t
@@ -622,6 +623,7 @@ class photometrycondVariationalDiffusionModel(nn.Module):
             z_t,
             g_t,
             wavelength,
+            spectime,
             mask,
             photometric_flux,
             photometric_time,
@@ -645,7 +647,7 @@ class photometrycondVariationalDiffusionModel(nn.Module):
 
         return loss_diff
 
-    def __call__(self, flux, wavelength = None, mask=None,
+    def __call__(self, flux, wavelength = None, spectime = None, mask=None,
                  photometric_flux=None, photometric_time=None, 
                  photometric_wavelength = None,photometric_mask=None):
         d_batch = flux.shape[0]
@@ -672,7 +674,7 @@ class photometrycondVariationalDiffusionModel(nn.Module):
         if T > 0:
             t = np.ceil(t * T) / T
 
-        loss_diff = self.diffusion_loss(t, flux_rec, wavelength, mask, 
+        loss_diff = self.diffusion_loss(t, flux_rec, wavelength, spectime,mask, 
                                         photometric_flux, photometric_time, 
                                         photometric_wavelength, photometric_mask)
                                         
@@ -695,7 +697,7 @@ class photometrycondVariationalDiffusionModel(nn.Module):
         # Decode if using encoder-decoder; otherwise just return last latent distribution
         return tfd.Normal(loc=z0, scale=self.noise_scale)
 
-    def sample_step(self, rng, i, T, z_t, wavelength = None, mask=None, 
+    def sample_step(self, rng, i, T, z_t, wavelength = None, spectime = None, mask=None, 
                     photometric_flux=None, photometric_time=None, 
                     photometric_wavelength = None,photometric_mask=None):
         """Sample a single step of the diffusion process."""
@@ -711,6 +713,7 @@ class photometrycondVariationalDiffusionModel(nn.Module):
             z_t,
             g_t * np.ones((z_t.shape[0],), z_t.dtype),
             wavelength,
+            spectime,
             mask,
             photometric_flux,
             photometric_time,
@@ -734,6 +737,7 @@ class photometrycondVariationalDiffusionModel(nn.Module):
         z_t,
         g_t,
         wavelength,
+        spectime,
         mask,
         photometric_flux,
         photometric_time,
@@ -744,6 +748,7 @@ class photometrycondVariationalDiffusionModel(nn.Module):
             flux=z_t,
             t=g_t,
             wavelength = wavelength,
+            spectime = spectime, 
             mask=mask,
             photometric_flux=photometric_flux,
             photometric_time=photometric_time,
