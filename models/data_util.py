@@ -4,16 +4,20 @@ import flax
 import pandas as pd
 import os
 from tqdm import tqdm
+from gp import gp_peak_time
 
 
 
 class specdata:
     def __init__(self, 
-                 master_list = "../data/ZTFBTS/ZTFBTS_TransientTable_train.csv", 
+                 master_list = "../data/ZTFBTS/ZTFBTS_TransientTable_withpeak.csv", 
                  light_curves = "../data/ZTFBTS/light-curves",
                  spectra = "../data/ZTFBTS_spectra_dashed",
                  max_length = 1024, photometry_len = 256, 
-                 z_score = True, spectime = False, verbose = False):
+                 z_score = True, 
+                 spectime = False, # this is relative to peak
+                 band_for_peak = "R",
+                 verbose = False):
         self.master_list = pd.read_csv(master_list, header = 0)
         self.light_curves = light_curves
         self.spectra = spectra
@@ -51,6 +55,10 @@ class specdata:
         self.spectime_mean = 0.
         self.spectime_std = 1.
 
+        self.peak_band = band_for_peak
+
+        self.peak_time = []
+
         self.load_data(verbose = verbose)
         self.num_class = len(self.class_encoding.keys())
         self.z_score = z_score
@@ -75,7 +83,7 @@ class specdata:
             photometry_pd = pd.read_csv(f"{self.light_curves}/{row['ZTFID']}.csv", header=0)
             green = photometry_pd[photometry_pd['band'] == 'g'][['time','mag']]
             red = photometry_pd[photometry_pd['band'] == 'R'][['time','mag']]
-            red_shift = row['redshift'] # redshift
+            
 
             self.len_list.append(len(spectra_pd))
     
@@ -117,6 +125,15 @@ class specdata:
             # green band
             green_time = green['time'].values
             green_flux = green['mag'].values
+
+            if self.peak_band not in ["g", "r"]:
+                raise ValueError("band for calculating peak must be either 'g' (green) or 'r' (red)")
+
+            if self.spectime and self.peak_band == "g":
+                peak = gp_peak_time(green_time, green_flux)
+                self.peak_time.append(peak)
+                self.spectime_list[-1] -= peak
+
             green_time = np.pad(green_time, (0, self.photometry_len - len(green_time)))
             green_flux = np.pad(green_flux, (0, self.photometry_len - len(green_flux)))
 
@@ -130,6 +147,13 @@ class specdata:
             # red band
             red_time = red['time'].values
             red_flux = red['mag'].values
+
+            if self.spectime and self.peak_band == "r":
+                peak = gp_peak_time(red_time, red_flux)
+                self.peak_time.append(peak)
+                self.spectime_list[-1] -= peak
+            
+
             red_time = np.pad(red_time, (0, self.photometry_len - len(red_time)))
             red_flux = np.pad(red_flux, (0, self.photometry_len - len(red_flux)))
 
@@ -170,8 +194,7 @@ class specdata:
         if concat_photometry:
             if self.spectime:
                 return self.fluxes, self.wavelengths, self.masks, self.class_list, self.spectime_list, np.concatenate([self.green_flux, self.red_flux], axis = 1), np.concatenate([self.green_time, self.red_time], axis = 1), np.concatenate([self.green_mask, self.red_mask], axis = 1)
-            else:
-                return self.fluxes, self.wavelengths, self.masks, self.class_list, np.concatenate([self.green_flux, self.red_flux], axis = 1), np.concatenate([self.green_time, self.red_time], axis = 1), np.concatenate([self.green_mask, self.red_mask], axis = 1)
+            return self.fluxes, self.wavelengths, self.masks, self.class_list, np.concatenate([self.green_flux, self.red_flux], axis = 1), np.concatenate([self.green_time, self.red_time], axis = 1), np.concatenate([self.green_mask, self.red_mask], axis = 1)
         else:
             if self.spectime:
                 return self.fluxes, self.wavelengths, self.masks, self.class_list, self.spectime_list, self.green_flux, self.green_time, self.green_mask, self.red_flux, self.red_time, self.red_mask
