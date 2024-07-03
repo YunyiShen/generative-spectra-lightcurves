@@ -14,6 +14,7 @@ from models.diffusion_utils import (
 )
 from models.scores_cond import (
     classcondTransformerScoreNet,
+    classtimecondTransformerScoreNet,
     photometrycondTransformerScoreNet,
 )
 from models.mlp import MLPEncoder, MLPDecoder
@@ -324,7 +325,7 @@ class classtimecondVariationalDiffusionModel(nn.Module):
 
         # Score model specification
         if self.score == "transformer":
-            self.score_model = classcondTransformerScoreNet(
+            self.score_model = classtimecondTransformerScoreNet(
                 d_t_embedding=self.d_t_embedding,
                 score_dict=self.score_dict,
                 num_classes=self.num_classes,

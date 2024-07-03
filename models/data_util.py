@@ -4,7 +4,7 @@ import flax
 import pandas as pd
 import os
 from tqdm import tqdm
-from gp import gp_peak_time
+from models.gp import gp_peak_time
 
 
 
@@ -14,21 +14,24 @@ class specdata:
                  light_curves = "../data/ZTFBTS/light-curves",
                  spectra = "../data/ZTFBTS_spectra_dashed",
                  max_length = 1024, photometry_len = 256, 
+                 class_encoding = None,
                  z_score = True, 
                  spectime = False, # this is relative to peak
-                 band_for_peak = "R",
+                 band_for_peak = "r",
+                 min_length_for_peak = 5,
                  verbose = False):
         self.master_list = pd.read_csv(master_list, header = 0)
         self.light_curves = light_curves
         self.spectra = spectra
         self.max_length = max_length
         self.photometry_len = photometry_len
+        self.min_length_for_peak = min_length_for_peak
         self.wavelengths = []
         self.fluxes = []
         self.masks = []
         self.len_list = []
         self.class_list = []
-        self.class_encoding = {}
+        self.class_encoding = class_encoding
         self.green_time = []
         self.green_flux = []
         self.green_mask = []
@@ -78,11 +81,15 @@ class specdata:
                 continue
 
 
-
-            spectra_pd = pd.read_csv(f"{self.spectra}/{row['ZTFID']}_dashed.csv", header=None)
-            photometry_pd = pd.read_csv(f"{self.light_curves}/{row['ZTFID']}.csv", header=0)
-            green = photometry_pd[photometry_pd['band'] == 'g'][['time','mag']]
-            red = photometry_pd[photometry_pd['band'] == 'R'][['time','mag']]
+            try:
+                spectra_pd = pd.read_csv(f"{self.spectra}/{row['ZTFID']}_dashed.csv", header=None)
+                photometry_pd = pd.read_csv(f"{self.light_curves}/{row['ZTFID']}.csv", header=0)
+                green = photometry_pd[photometry_pd['band'] == 'g'][['time','mag']]
+                red = photometry_pd[photometry_pd['band'] == 'R'][['time','mag']]
+            except:
+                if verbose:
+                    print(f"Skipping {row['ZTFID']} because its spectrum or light curve is corrupted")
+                continue
             
 
             self.len_list.append(len(spectra_pd))
@@ -98,6 +105,15 @@ class specdata:
             if len(red) > self.photometry_len: 
                 if verbose:
                     print(f"Skipping {row['ZTFID']} because its red band too long with length {len(red)}")
+                continue
+
+            if len(red) < self.min_length_for_peak and self.peak_band == "r":
+                if verbose:
+                    print(f"Skipping {row['ZTFID']} because its red band too short for peak determination with length {len(red)}")
+                continue
+            if len(green) < self.min_length_for_peak and self.peak_band == "g":
+                if verbose:
+                    print(f"Skipping {row['ZTFID']} because its green band too short for peak determination with length {len(green)}")
                 continue
             ### type
             self.class_list.append(row['type']) # type
@@ -147,9 +163,10 @@ class specdata:
             # red band
             red_time = red['time'].values
             red_flux = red['mag'].values
-
+            #print(row['ZTFID'])
             if self.spectime and self.peak_band == "r":
                 peak = gp_peak_time(red_time, red_flux)
+                #breakpoint()
                 self.peak_time.append(peak)
                 self.spectime_list[-1] -= peak
             
@@ -182,8 +199,8 @@ class specdata:
         self.red_mask = self.red_mask.astype(bool)
 
         # encode classes
-        
-        self.class_encoding = {cls: idx for idx, cls in enumerate(set(self.class_list))}
+        if self.class_encoding is None:
+            self.class_encoding = {cls: idx for idx, cls in enumerate(set(self.class_list))}
         self.class_list = np.array([self.class_encoding[cls] for cls in self.class_list])
 
         if self.spectime:

@@ -111,17 +111,17 @@ class classtimecondTransformerScoreNet(nn.Module):
         if spectime is None:
             spectime_embd = 0.0
         else:
-            spectime_embd = get_sinusoidal_embedding(spectime, self.d_spectime_embedding)
+            spectime_embd = get_timestep_embedding(spectime, self.d_spectime_embedding)
             spectime_embd = nn.gelu(nn.Dense(self.score_dict["d_model"])(spectime_embd))
             spectime_embd = nn.Dense(self.score_dict["d_model"])(spectime_embd)
 
             
 
         if conditioning is None:
-            cond = t_embedding[:, None, :] + wavelength_embd + spectime_embd
+            cond = t_embedding[:, None, :] + wavelength_embd + spectime_embd[:, None, :]
         elif self.num_classes > 1:
             conditioning = nn.Embed(self.num_classes,self.score_dict["d_model"])(conditioning)
-            cond = t_embedding[:, None, :] + wavelength_embd + spectime_embd + conditioning[:, None, :]
+            cond = t_embedding[:, None, :] + wavelength_embd + spectime_embd[:, None, :] + conditioning[:, None, :]
         else:
             raise ValueError(f"there are {self.num_classes} classes, but num_classes must be > 1")
 
@@ -171,7 +171,7 @@ class photometrycondTransformerScoreNet(nn.Module):
         if spectime is None:
             spectime_embd = 0.0
         else:
-            spectime_embd = get_sinusoidal_embedding(spectime, self.d_spectime_embedding)
+            spectime_embd = get_timestep_embedding(spectime, self.d_spectime_embedding)
             spectime_embd = nn.gelu(nn.Dense(self.score_dict["d_model"])(spectime_embd))
             spectime_embd = nn.Dense(self.score_dict["d_model"])(spectime_embd)
         
@@ -187,7 +187,7 @@ class photometrycondTransformerScoreNet(nn.Module):
         score_dict.pop("score", None)
 
         if photometric_flux is None:
-            cond = t_embedding[:, None, :] + wavelength_embd + spectime_embd
+            cond = t_embedding[:, None, :] + wavelength_embd + spectime_embd[:, None, :]
         else:
             # transformer for green and red channels
             photometric_time_embd = get_sinusoidal_embedding(photometric_time, self.d_photometrictime_embedding)
