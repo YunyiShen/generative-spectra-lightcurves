@@ -128,8 +128,7 @@ from models.diffusion_utils import classtimecondgenerate
 
 # Generate samples
 n_samples = 100
-wavelength_cond = wavelength[4:5, : np.sum(mask[0])]
-wavelength_cond = (np.linspace(3000., 8000., 214)[None, ...] - wavelengths_mean) / wavelengths_std 
+wavelength_cond = (np.linspace(3000., 8000., flux.shape[1])[None, ...] - wavelengths_mean) / wavelengths_std 
 type_cond = np.array([class_encoding['SN Ia']])
 phase_cond = np.array([0.0])
 

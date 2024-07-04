@@ -46,7 +46,7 @@ with open('../ckpt/calssphasecond_static_dict_param_phase0', 'rb') as f:
 params = flax.serialization.from_bytes(params, serialized_model)
 
 
-wavelength_cond = (np.linspace(3000., 8000., 214)[None, ...] - wavelengths_mean) / wavelengths_std 
+wavelength_cond = (np.linspace(3000., 8000., flux.shape[1])[None, ...] - wavelengths_mean) / wavelengths_std 
 type_cond = np.array([class_encoding['SN Ia']])
 phases = (np.linspace(0, 30, 31) - spectime_mean)/spectime_std
 #breakpoint()

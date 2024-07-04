@@ -111,17 +111,20 @@ class classtimecondTransformerScoreNet(nn.Module):
         if spectime is None:
             spectime_embd = 0.0
         else:
+            #breakpoint()
             spectime_embd = get_timestep_embedding(spectime, self.d_spectime_embedding)
             spectime_embd = nn.gelu(nn.Dense(self.score_dict["d_model"])(spectime_embd))
-            spectime_embd = nn.Dense(self.score_dict["d_model"])(spectime_embd)
+            spectime_embd = nn.Dense(self.score_dict["d_model"] * flux.shape[1])(spectime_embd)
+            spectime_embd = np.reshape(spectime_embd, (spectime_embd.shape[0], flux.shape[1], -1)) # reshape
 
             
 
         if conditioning is None:
-            cond = t_embedding[:, None, :] + wavelength_embd + spectime_embd[:, None, :]
+            cond = t_embedding[:, None, :] + wavelength_embd + spectime_embd#[:, None, :]
         elif self.num_classes > 1:
-            conditioning = nn.Embed(self.num_classes,self.score_dict["d_model"])(conditioning)
-            cond = t_embedding[:, None, :] + wavelength_embd + spectime_embd[:, None, :] + conditioning[:, None, :]
+            conditioning = nn.Embed(self.num_classes,self.score_dict["d_model"] * flux.shape[1])(conditioning)
+            conditioning = np.reshape(conditioning, (conditioning.shape[0], flux.shape[1], -1)) # reshape
+            cond = t_embedding[:, None, :] + wavelength_embd + spectime_embd + conditioning#[:, None, :]
         else:
             raise ValueError(f"there are {self.num_classes} classes, but num_classes must be > 1")
 
@@ -173,7 +176,8 @@ class photometrycondTransformerScoreNet(nn.Module):
         else:
             spectime_embd = get_timestep_embedding(spectime, self.d_spectime_embedding)
             spectime_embd = nn.gelu(nn.Dense(self.score_dict["d_model"])(spectime_embd))
-            spectime_embd = nn.Dense(self.score_dict["d_model"])(spectime_embd)
+            spectime_embd = nn.Dense(self.score_dict["d_model"] * flux.shape[1])(spectime_embd)
+            spectime_embd = np.reshape(spectime_embd, (spectime_embd.shape[0], flux.shape[1], -1)) # reshape
         
             
         # sinusoidal -- MLP, follow the time embedding from DiT paper, embeded the same for photometry and spectrum
@@ -187,12 +191,13 @@ class photometrycondTransformerScoreNet(nn.Module):
         score_dict.pop("score", None)
 
         if photometric_flux is None:
-            cond = t_embedding[:, None, :] + wavelength_embd + spectime_embd[:, None, :]
+            cond = t_embedding[:, None, :] + wavelength_embd + spectime_embd
         else:
             # transformer for green and red channels
             photometric_time_embd = get_sinusoidal_embedding(photometric_time, self.d_photometrictime_embedding)
             photometric_time_embd = nn.gelu(nn.Dense(self.score_dict["d_model"])(photometric_time_embd))
             photometric_time_embd = nn.Dense(self.score_dict["d_model"])(photometric_time_embd)
+            
             
             photometric_wavelength_embd = get_sinusoidal_embedding(photometric_wavelength, self.d_wave_embedding)
             photometric_wavelength_embd = wave_mlp(photometric_wavelength_embd)
@@ -204,8 +209,9 @@ class photometrycondTransformerScoreNet(nn.Module):
             photometric_embd = np.reshape(photometric_embd, (photometric_embd.shape[0], -1)) # flatten
             
             conditioning = nn.gelu(nn.Dense(self.score_dict["d_model"])(photometric_embd))
-            conditioning = nn.Dense(self.score_dict["d_model"])(conditioning)
-            cond = t_embedding[:, None, :] + wavelength_embd + spectime_embd[:, None, :] + conditioning[:, None, :]
+            conditioning = nn.Dense(self.score_dict["d_model"] * flux.shape[1])(conditioning)
+            conditioning = np.reshape(conditioning, (conditioning.shape[0], flux.shape[1], -1))
+            cond = t_embedding[:, None, :] + wavelength_embd + spectime_embd + conditioning
 
         
 
