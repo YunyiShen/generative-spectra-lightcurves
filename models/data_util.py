@@ -34,9 +34,11 @@ class specdata:
         self.class_encoding = class_encoding
         self.green_time = []
         self.green_flux = []
+        self.green_wavelength = []
         self.green_mask = []
         self.red_time = []
         self.red_flux = []
+        self.red_wavelength = []
         self.red_mask = []
         self.fluxes_mean = 0.
         self.fluxes_std = 1.
@@ -116,12 +118,17 @@ class specdata:
                     print(f"Skipping {row['ZTFID']} because its green band too short for peak determination with length {len(green)}")
                 continue
             ### type
-            self.class_list.append(row['type']) # type
             if self.spectime:
-                self.spectime_list.append(row['Spectrum_Date_(MJD)'])
+                spectime = row['Spectrum_Date_(MJD)']
+                #self.spectime_list.append(spectime)
             #breakpoint()
             ### spectra
             wavelength = spectra_pd[0].values #* (0. if np.isnan( float(red_shift)) else float(red_shift) + 1.) # correct for redshift
+            if np.max(wavelength) <= 2000. or np.min(wavelength) >= 8000.:
+                if verbose:
+                    print(f"Skipping {row['ZTFID']} because its spectrum is out of range")
+                continue
+            
             flux = spectra_pd[1].values
     
             # Pad the flux, wavelength, and mask
@@ -132,53 +139,84 @@ class specdata:
             mask = np.ones(self.max_length)
             mask = mask.at[len(spectra_pd):].set(0)
 
-            # Append to the list
-            self.fluxes.append(flux)
-            self.wavelengths.append(wavelength)
-            self.masks.append(mask)
+            
 
             ### photometry
             # green band
             green_time = green['time'].values
             green_flux = green['mag'].values
+            green_wavelength = 0.*green_time + 1196.25
 
             if self.peak_band not in ["g", "r"]:
                 raise ValueError("band for calculating peak must be either 'g' (green) or 'r' (red)")
 
             if self.spectime and self.peak_band == "g":
                 peak = gp_peak_time(green_time, green_flux)
+                spectime -= peak
+                if spectime >= 200: # 200 days old
+                    if verbose:
+                        print(f"Skipping {row['ZTFID']} because spectrum is taken way far from peak")
+                    continue
                 self.peak_time.append(peak)
-                self.spectime_list[-1] -= peak
 
             green_time = np.pad(green_time, (0, self.photometry_len - len(green_time)))
             green_flux = np.pad(green_flux, (0, self.photometry_len - len(green_flux)))
+            green_wavelength = np.pad(green_wavelength, (0, self.photometry_len - len(green_wavelength)))
 
             green_mask = np.ones(self.photometry_len)
             green_mask = green_mask.at[len(green):].set(0)
 
-            self.green_time.append(green_time)
-            self.green_flux.append(green_flux)
-            self.green_mask.append(green_mask)
+            
 
             # red band
             red_time = red['time'].values
             red_flux = red['mag'].values
+            red_wavelength = 0.*red_time + 6366.38
+
             #print(row['ZTFID'])
             if self.spectime and self.peak_band == "r":
                 peak = gp_peak_time(red_time, red_flux)
-                #breakpoint()
+                spectime -= peak
+                if spectime >= 200: # 200 days old
+                    if verbose:
+                        print(f"Skipping {row['ZTFID']} because spectrum is taken way far from peak")
+                    continue
                 self.peak_time.append(peak)
-                self.spectime_list[-1] -= peak
             
 
             red_time = np.pad(red_time, (0, self.photometry_len - len(red_time)))
             red_flux = np.pad(red_flux, (0, self.photometry_len - len(red_flux)))
+            red_wavelength = np.pad(red_wavelength, (0, self.photometry_len - len(red_wavelength)))
 
             red_mask = np.ones(self.photometry_len)
             red_mask = red_mask.at[len(red):].set(0)
 
+
+
+            # Append to the list
+            if self.class_encoding is not None:
+                if row['type'] not in self.class_encoding:
+                    if verbose:
+                        print(f"Skipping {row['ZTFID']} because its class is not not in training")
+                    continue
+
+            self.class_list.append(row['type']) # type
+            if self.spectime:
+                self.spectime_list.append(spectime)
+
+            # flux
+            self.fluxes.append(flux)
+            self.wavelengths.append(wavelength)
+            self.masks.append(mask)
+            
+            self.green_time.append(green_time)
+            self.green_flux.append(green_flux)
+            self.green_wavelength.append(green_wavelength)
+            self.green_mask.append(green_mask)
+
             self.red_time.append(red_time)
             self.red_flux.append(red_flux)
+            self.red_wavelength.append(red_wavelength)
             self.red_mask.append(red_mask)
 
         # Stack the fluxes, spectra, and masks  
@@ -187,9 +225,11 @@ class specdata:
         self.masks = np.stack(self.masks)
         self.green_time = np.stack(self.green_time)
         self.green_flux = np.stack(self.green_flux)
+        self.green_wavelength = np.stack(self.green_wavelength)
         self.green_mask = np.stack(self.green_mask)
         self.red_time = np.stack(self.red_time)
         self.red_flux = np.stack(self.red_flux)
+        self.red_wavelength = np.stack(self.red_wavelength)
         self.red_mask = np.stack(self.red_mask)
 
     
@@ -210,12 +250,12 @@ class specdata:
     def get_data(self, concat_photometry = False):
         if concat_photometry:
             if self.spectime:
-                return self.fluxes, self.wavelengths, self.masks, self.class_list, self.spectime_list, np.concatenate([self.green_flux, self.red_flux], axis = 1), np.concatenate([self.green_time, self.red_time], axis = 1), np.concatenate([self.green_mask, self.red_mask], axis = 1)
-            return self.fluxes, self.wavelengths, self.masks, self.class_list, np.concatenate([self.green_flux, self.red_flux], axis = 1), np.concatenate([self.green_time, self.red_time], axis = 1), np.concatenate([self.green_mask, self.red_mask], axis = 1)
+                return self.fluxes, self.wavelengths, self.masks, self.class_list, self.spectime_list, np.concatenate([self.green_flux, self.red_flux], axis = 1), np.concatenate([self.green_time, self.red_time], axis = 1), np.concatenate([self.green_wavelength, self.red_wavelength], axis = 1), np.concatenate([self.green_mask, self.red_mask], axis = 1)
+            return self.fluxes, self.wavelengths, self.masks, self.class_list, np.concatenate([self.green_flux, self.red_flux], axis = 1), np.concatenate([self.green_time, self.red_time], axis = 1),np.concatenate([self.green_wavelength, self.red_wavelength], axis = 1), np.concatenate([self.green_mask, self.red_mask], axis = 1)
         else:
             if self.spectime:
-                return self.fluxes, self.wavelengths, self.masks, self.class_list, self.spectime_list, self.green_flux, self.green_time, self.green_mask, self.red_flux, self.red_time, self.red_mask
-            return self.fluxes, self.wavelengths, self.masks, self.class_list, self.green_flux, self.green_time, self.green_mask, self.red_flux, self.red_time, self.red_mask
+                return self.fluxes, self.wavelengths, self.masks, self.class_list, self.spectime_list, self.green_flux, self.green_time, self.green_wavelength,self.green_mask, self.red_flux, self.red_time, self.red_wavelength,self.red_mask
+            return self.fluxes, self.wavelengths, self.masks, self.class_list, self.green_flux, self.green_time, self.green_wavelength, self.green_mask, self.red_flux, self.red_time, self.red_wavelength,self.red_mask
     
     def normalize(self):
         # Normalize the fluxes and wavelengths
@@ -243,6 +283,10 @@ class specdata:
         self.red_flux = (self.red_flux - self.red_mean) / self.red_std
         self.green_time = (self.green_time - self.green_time_mean) / self.green_time_std
         self.red_time = (self.red_time - self.red_time_mean) / self.red_time_std
+
+        self.green_wavelength = (self.green_wavelength - self.wavelengths_mean)/self.wavelengths_std
+        self.red_wavelength = (self.red_wavelength - self.wavelengths_mean)/self.wavelengths_std
+
 
         if self.spectime:
             self.spectime_mean = np.mean(self.spectime_list)

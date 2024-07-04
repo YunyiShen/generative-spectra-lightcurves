@@ -183,3 +183,5 @@ scripts/sandbox.sh
 
 ckpt/*
 scripts/makeplot.py
+
+samples/*

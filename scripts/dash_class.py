@@ -48,8 +48,8 @@ def predict_just_class_for_one_star(filenames, redshift,
     return bestTypes[0], softmaxes[0]
 
 
-wavelength = np.load("Ia_wavelength_sine.npy")
-samples = np.load("Ia_samples_sine.npy")
+wavelength = np.load("Ia_wavelength_phase0.npy")
+samples = np.load("Ia_samples_phase0.npy")
 
 Ia_counter = 0
 fig, ax = plt.subplots(2, 1, figsize=(10, 10))
@@ -71,6 +71,6 @@ ax[1].set_ylabel("Flux")
 ax[0].set_title("Generated SN Ia samples (dash confirmed)")
 ax[1].set_title("Generated SN Ia samples (dash disagreed)")
 plt.show()
-plt.savefig("Ia_samples_sine_dash.png")
+plt.savefig("Ia_samples_phase0_dash.png")
     
 print(Ia_counter)

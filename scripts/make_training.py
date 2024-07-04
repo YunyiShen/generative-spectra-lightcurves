@@ -39,21 +39,22 @@ import json
 from models.data_util import specdata
 
 
-spec_data = specdata(master_list = "../data/ZTFBTS/ZTFBTS_TransientTable_withpeak.csv",
+spec_data = specdata(master_list = "../data/ZTFBTS/ZTFBTS_TransientTable_withpeak_train.csv",
                      verbose = True,
                      spectime = True)
-flux, freq, mask, type, phase, photoflux, phototime, photomask = spec_data.get_data(concat_photometry = True)
-np.savez("../data/all_data.npz", 
+flux, wavelength, mask, type, phase, photoflux, phototime, photowavelength, photomask = spec_data.get_data(concat_photometry = True)
+np.savez("../data/train_data.npz", 
          flux=flux, 
-         wavelength=freq, 
+         wavelength=wavelength, 
          mask=mask, 
          type=type, 
          phase=phase, photoflux=photoflux, 
-         phototime=phototime, photomask=photomask,
+         phototime=phototime, photowavelength=photowavelength,
+         photomask=photomask,
          flux_mean=spec_data.fluxes_mean,
          flux_std=spec_data.fluxes_std,
-         freq_mean=spec_data.wavelengths_mean,
-         freq_std=spec_data.wavelengths_std,
+         wavelength_mean=spec_data.wavelengths_mean,
+         wavelength_std=spec_data.wavelengths_std,
 
         green_mean = spec_data.green_mean,
         green_std = spec_data.green_std,
@@ -65,10 +66,10 @@ np.savez("../data/all_data.npz",
         red_time_std = spec_data.red_time_std,
         spectime_mean = spec_data.spectime_mean,
         spectime_std = spec_data.spectime_std)
-with open('../data/all_class_dict.json', 'w') as fp:
+with open('../data/train_class_dict.json', 'w') as fp:
     json.dump(spec_data.class_encoding, fp)
 
-'''
+
 class_encoding = spec_data.class_encoding
 
 spec_data = specdata(master_list = "../data/ZTFBTS/ZTFBTS_TransientTable_withpeak_test.csv",
@@ -76,13 +77,14 @@ spec_data = specdata(master_list = "../data/ZTFBTS/ZTFBTS_TransientTable_withpea
                      spectime = True, 
                      class_encoding = class_encoding, 
                      z_score=False)
-flux, freq, mask, type, phase, photoflux, phototime, photomask = spec_data.get_data(concat_photometry = True)
+flux, wavelength, mask, type, phase, photoflux, phototime, photowavelength,photomask = spec_data.get_data(concat_photometry = True)
 np.savez("../data/test_data.npz", 
          flux=flux, 
-         freq=freq, 
+         wavelength=wavelength, 
          mask=mask, 
          type=type, 
          phase=phase, photoflux=photoflux, 
-         phototime=phototime, photomask=photomask)
+         phototime=phototime, 
+         photowavelength=photowavelength,
+         photomask=photomask)
 
-'''

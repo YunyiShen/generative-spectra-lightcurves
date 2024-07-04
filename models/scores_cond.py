@@ -155,8 +155,8 @@ class photometrycondTransformerScoreNet(nn.Module):
 
     @nn.compact
     def __call__(self, flux, t, wavelength , spectime, mask, 
-                 photometric_flux, photometric_time, 
-                 photometric_mask, photometric_wavelength): 
+                 photometric_flux, photometric_time , photometric_wavelength, 
+                 photometric_mask): 
         assert np.isscalar(t) or len(t.shape) == 0 or len(t.shape) == 1
         t = t * np.ones(flux.shape[0])  # Ensure t is a vector
 
@@ -193,19 +193,19 @@ class photometrycondTransformerScoreNet(nn.Module):
             photometric_time_embd = get_sinusoidal_embedding(photometric_time, self.d_photometrictime_embedding)
             photometric_time_embd = nn.gelu(nn.Dense(self.score_dict["d_model"])(photometric_time_embd))
             photometric_time_embd = nn.Dense(self.score_dict["d_model"])(photometric_time_embd)
-
+            
             photometric_wavelength_embd = get_sinusoidal_embedding(photometric_wavelength, self.d_wave_embedding)
             photometric_wavelength_embd = wave_mlp(photometric_wavelength_embd)
 
             photometric_cond = photometric_time_embd + photometric_wavelength_embd
             
-
+            #breakpoint()
             photometric_embd = Transformer(n_input=photometric_flux.shape[-1], **score_dict)(photometric_flux, photometric_cond, photometric_mask)
             photometric_embd = np.reshape(photometric_embd, (photometric_embd.shape[0], -1)) # flatten
             
             conditioning = nn.gelu(nn.Dense(self.score_dict["d_model"])(photometric_embd))
             conditioning = nn.Dense(self.score_dict["d_model"])(conditioning)
-            cond = t_embedding[:, None, :] + wavelength_embd + spectime_embd + conditioning[:, None, :]
+            cond = t_embedding[:, None, :] + wavelength_embd + spectime_embd[:, None, :] + conditioning[:, None, :]
 
         
 

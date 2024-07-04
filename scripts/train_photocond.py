@@ -17,7 +17,7 @@ import orbax.checkpoint
 
 
 from models.data_util import specdata
-from models.diffusion_cond import classtimecondVariationalDiffusionModel
+from models.diffusion_cond import photometrycondVariationalDiffusionModel
 from models.transformer import Transformer
 import json
 
@@ -29,10 +29,11 @@ train_data = np.load("../data/train_data.npz")
 flux, wavelength, mask = train_data['flux'], train_data['wavelength'], train_data['mask'] 
 type, phase = train_data['type'], train_data['phase'] 
 photoflux, phototime, photomask = train_data['photoflux'], train_data['phototime'], train_data['photomask']
-class_encoding = json.load(open('../data/class_dict.json'))
+photowavelength = train_data['photowavelength']
+class_encoding = json.load(open('../data/train_class_dict.json'))
 
 fluxes_std,  fluxes_mean = train_data['flux_std'], train_data['flux_mean']
-wavelengths_std, wavelengths_mean = train_data['freq_std'], train_data['freq_mean']
+wavelengths_std, wavelengths_mean = train_data['wavelength_std'], train_data['wavelength_mean']
 
 
 # Define the model
@@ -43,15 +44,23 @@ score_dict = {
             "n_heads": 4,
             "concat_conditioning": False,
         }
-vdm = classtimecondVariationalDiffusionModel(d_feature=1, d_t_embedding=32, 
+vdm = photometrycondVariationalDiffusionModel(d_feature=1, d_t_embedding=32, 
                                          noise_scale=1e-4, 
                                          noise_schedule="learned_linear",
-                                         num_classes=len(class_encoding),
+                                         
                                          score_dict = score_dict,
                                          )
 
 init_rngs = {'params': jax.random.key(0), 'sample': jax.random.key(1)}
-out, params = vdm.init_with_output(init_rngs, flux[:2, :, None], wavelength[:2, :, None], phase[:2], type[:2], mask[:2])
+out, params = vdm.init_with_output(init_rngs, flux[:2, :, None], 
+                                   wavelength[:2, :, None], 
+                                   phase[:2], 
+                                   mask[:2],
+                                   photoflux[:2, :, None],
+                                   phototime[:2, :, None],
+                                   photowavelength[:2, :, None],
+                                   photomask[:2],
+                                   )
 
 schedule = optax.warmup_cosine_decay_schedule(
     init_value=0.0,
@@ -75,10 +84,17 @@ def loss_vdm(outputs, masks=None):
     return loss_batch.mean()
 
 @partial(jax.pmap, axis_name="batch",)
-def train_step(state, flux, wavelength, phase,cond, masks, key_sample):
+def train_step(state, flux, wavelength, 
+               phase, masks, 
+               photo_flux, photo_time, photo_wavelength, photo_mask,
+               key_sample):
     
     def loss_fn(params):
-        outputs = state.apply_fn(params, flux, wavelength, phase,cond,masks, rngs={"sample": key_sample})
+        outputs = state.apply_fn(params, flux, wavelength, 
+               phase, masks, 
+               photo_flux, photo_time, 
+               photo_wavelength, photo_mask, 
+               rngs={"sample": key_sample})
         loss = loss_vdm(outputs, masks)
         
         return loss
@@ -109,42 +125,63 @@ with trange(n_steps) as steps:
         fluxes_batch = jax.tree.map(lambda x: np.split(x, num_local_devices, axis=0), fluxes_batch)
         wavelength_batch = jax.tree.map(lambda x: np.split(x, num_local_devices, axis=0), wavelength_batch)
         phase_batch = jax.tree.map(lambda x: np.split(x, num_local_devices, axis=0), phase_batch)
-        cond_batch = jax.tree.map(lambda x: np.split(x, num_local_devices, axis=0), cond_batch)
+        
         masks_batch = jax.tree.map(lambda x: np.split(x, num_local_devices, axis=0), masks_batch)
+
+        photoflux_batch, phototime_batch, photowavelength_batch, photomask_batch = photoflux[idx], phototime[idx], photowavelength[idx], photomask[idx]
+        photoflux_batch = jax.tree.map(lambda x: np.split(x, num_local_devices, axis=0), photoflux_batch)
+        phototime_batch = jax.tree.map(lambda x: np.split(x, num_local_devices, axis=0), phototime_batch)
+        photowavelength_batch = jax.tree.map(lambda x: np.split(x, num_local_devices, axis=0), photowavelength_batch)
+        photomask_batch = jax.tree.map(lambda x: np.split(x, num_local_devices, axis=0), photomask_batch)
 
         # Convert to np.ndarray
         fluxes_batch = np.array(fluxes_batch)
         wavelength_batch = np.array(wavelength_batch)
         phase_batch = np.array(phase_batch)
-        cond_batch = np.array(cond_batch)
         masks_batch = np.array(masks_batch)
+
+        photoflux_batch = np.array(photoflux_batch)
+        phototime_batch = np.array(phototime_batch)
+        photowavelength_batch = np.array(photowavelength_batch)
+        photomask_batch = np.array(photomask_batch)
+
         
-        pstate, metrics = train_step(pstate, fluxes_batch[..., None], wavelength_batch[..., None], phase_batch, cond_batch,masks_batch, train_step_key)
+        pstate, metrics = train_step(pstate, fluxes_batch[..., None], wavelength_batch[..., None], phase_batch, 
+                                     masks_batch, 
+                                     photoflux_batch[..., None], phototime_batch[..., None],
+                                     photowavelength_batch[..., None], photomask_batch,
+                                     
+                                     train_step_key)
         #breakpoint()
         steps.set_postfix(loss=unreplicate(metrics["loss"]))
 
 ### test for generating
-from models.diffusion_utils import classtimecondgenerate
+from models.diffusion_utils import photometrycondgenerate
 
 # Generate samples
 n_samples = 100
 wavelength_cond = wavelength[4:5, : np.sum(mask[0])]
-wavelength_cond = np.linspace(np.min(wavelength_cond), np.max(wavelength_cond), 214)[None, ...]
+wavelength_cond = (np.linspace(3000., 8000., 214)[None, ...] - wavelengths_mean) / wavelengths_std 
 type_cond = np.array([class_encoding['SN Ia']])
 phase_cond = np.array([0.0])
-breakpoint()
+#breakpoint()
 
-
-samples = classtimecondgenerate(vdm, unreplicate(pstate).params, 
+print(class_encoding)
+print(type[:1])
+samples = photometrycondgenerate(vdm, unreplicate(pstate).params, 
                             jax.random.PRNGKey(412141), 
                             (n_samples, len(wavelength_cond[0])), 
                             wavelength_cond[..., None], 
                             phase_cond,
-                            type_cond,
-                            np.ones_like(wavelength_cond), steps=200)
+                            np.ones_like(wavelength_cond), 
+                            photoflux[:1][...,None],
+                            phototime[:1][...,None],
+                            photowavelength[:1][...,None],
+                            photomask[:1],
+                            steps=200)
 
-np.save("Ia_samples_phase0.npy", samples.mean()[:, :, 0] * fluxes_std + fluxes_mean)
-np.save("Ia_wavelength_phase0.npy", wavelength_cond[0]* wavelengths_std + wavelengths_mean)
+np.save("Ia_samples_LC.npy", samples.mean()[:, :, 0] * fluxes_std + fluxes_mean)
+np.save("Ia_wavelength_LC.npy", wavelength_cond[0]* wavelengths_std + wavelengths_mean)
 
 import matplotlib.pyplot as plt
 for i in range(n_samples):
@@ -153,11 +190,13 @@ for i in range(n_samples):
 
 #plt.yscale("log")
 plt.title("Generated spectra")
-plt.savefig('Ia_samples_phase0.png')  
+plt.savefig('LC_cond_samples_phase0.png')  
 plt.close()
 
 # save parameters
-np.save("../ckpt/calssphasecond_static_dict_param_phase0",unreplicate(pstate).params)
+byte_output = serialization.to_bytes(unreplicate(pstate).params)
+with open('../ckpt/photometrycond_static_dict_param', 'wb') as f:
+    f.write(byte_output)
 # this is not an elegant solution but I cannot save checkpoint on supercloud
 
 
