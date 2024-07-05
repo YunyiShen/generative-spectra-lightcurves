@@ -51,6 +51,8 @@ def predict_just_class_for_one_star(filenames, redshift,
 wavelength = np.load("Ia_wavelength_LC.npy")
 samples = np.load("Ia_samples_LC.npy")
 
+#breakpoint()
+
 Ia_counter = 0
 fig, ax = plt.subplots(2, 1, figsize=(10, 10))
 for i in range(4,24):
@@ -71,6 +73,6 @@ ax[1].set_ylabel("Flux")
 ax[0].set_title("Generated SN Ia samples (dash confirmed)")
 ax[1].set_title("Generated SN Ia samples (dash disagreed)")
 plt.show()
-plt.savefig("Ia_samples_LC_dash.png")
+plt.savefig("Ia_samples_dash.png")
     
 print(Ia_counter)

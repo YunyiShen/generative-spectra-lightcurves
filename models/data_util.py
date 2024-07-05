@@ -130,6 +130,8 @@ class specdata:
                 continue
             
             flux = spectra_pd[1].values
+            flux = flux[np.argsort(wavelength)]
+            wavelength = wavelength[np.argsort(wavelength)]
     
             # Pad the flux, wavelength, and mask
             flux = np.pad(flux, (0, self.max_length - len(flux)))

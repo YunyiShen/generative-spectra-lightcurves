@@ -47,11 +47,32 @@ params = flax.serialization.from_bytes(params, serialized_model)
 
 
 wavelength_cond = (np.linspace(3000., 8000., flux.shape[1])[None, ...] - wavelengths_mean) / wavelengths_std 
-type_cond = np.array([class_encoding['SN Ia']])
-phases = (np.linspace(0, 30, 31) - spectime_mean)/spectime_std
+type_cond = np.array([class_encoding['SN II']])
+phase_cond = np.array([0.])
+#phases = (np.linspace(0, 30, 31) - spectime_mean)/spectime_std
 #breakpoint()
 n_samples = 50
 fig, ax1 = plt.subplots(1, 1, figsize=(7, 6))
+
+sample = classtimecondgenerate(vdm, params, jax.random.PRNGKey(42), 
+                            (n_samples, len(wavelength_cond[0])), 
+                            wavelength_cond[..., None], 
+                            phase_cond,
+                            type_cond,
+                            np.ones_like(wavelength_cond), steps=200)
+samples = sample.mean()[:,:,0]
+np.save(f"../samples/II_phase{phase}.npy", samples)
+for i in range(n_samples):
+    plt.plot(wavelength_cond[0] * wavelengths_std + wavelengths_mean, 
+             samples[i] * fluxes_std + fluxes_mean) # Generated sample
+
+#plt.yscale("log")
+plt.title("Generated spectra")
+plt.savefig('../samples/II_samples_phase0.png')  
+plt.close()
+
+
+'''
 camera = Camera(fig)
 #breakpoint()
 from tqdm import tqdm
@@ -72,7 +93,7 @@ for phase in tqdm(phases):
     camera.snap()
 animation = camera.animate()
 animation.save('../samples/classphasecond.mp4')
-
+'''
 
 
 
