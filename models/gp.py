@@ -24,16 +24,17 @@ def gp_peak_time(time, flux):
     time_std = np.std(time)
     time = (time - time_mean) / time_std
 
-    time = np.sort(time)
+    
     #breakpoint()
     
     flux_mean = np.mean(flux)
     flux_std = np.std(flux)
     flux = (flux - flux_mean) / flux_std
-
+    flux = flux[np.argsort(time)]
+    time = np.sort(time)
 
     def build_gp(params):
-        kernel = np.exp(params["log_gp_amp"]) * kernels.Matern52(
+        kernel = np.exp(params["log_gp_amp"]) * kernels.ExpSquared(
             np.exp(params["log_gp_scale"])
         )
         return GaussianProcess(
@@ -50,8 +51,8 @@ def gp_peak_time(time, flux):
 
 
     params = dict(
-        log_gp_amp=np.log(0.1),
-        log_gp_scale=np.log(3.0),
+        log_gp_amp=np.log(1.),
+        log_gp_scale=np.log(1.0),
         log_gp_diag=np.log(0.03),
         mean = 0.,
     )
@@ -65,7 +66,7 @@ def gp_peak_time(time, flux):
     _, cond = gp.condition(flux, time_grid)
 
     prd = cond.loc
-
+    #breakpoint()
     peak = time_grid[np.argmax(prd)] * time_std + time_mean
 
     return peak

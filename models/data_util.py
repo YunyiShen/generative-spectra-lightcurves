@@ -155,7 +155,7 @@ class specdata:
             if self.spectime and self.peak_band == "g":
                 peak = gp_peak_time(green_time, green_flux)
                 spectime -= peak
-                if spectime >= 200: # 200 days old
+                if np.abs(spectime) >= 100: # 200 days old
                     if verbose:
                         print(f"Skipping {row['ZTFID']} because spectrum is taken way far from peak")
                     continue
@@ -179,7 +179,7 @@ class specdata:
             if self.spectime and self.peak_band == "r":
                 peak = gp_peak_time(red_time, red_flux)
                 spectime -= peak
-                if spectime >= 200: # 200 days old
+                if np.abs(spectime) >= 100: # 200 days old
                     if verbose:
                         print(f"Skipping {row['ZTFID']} because spectrum is taken way far from peak")
                     continue
