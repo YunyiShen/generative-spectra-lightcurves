@@ -106,7 +106,7 @@ def train_step(state, flux, wavelength,
     metrics = {"loss": jax.lax.pmean(loss, "batch")}
     return new_state, metrics
 
-n_steps = 2000
+n_steps = 4000
 n_batch = 32
 
 key = jax.random.PRNGKey(0)

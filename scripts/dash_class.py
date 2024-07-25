@@ -48,8 +48,8 @@ def predict_just_class_for_one_star(filenames, redshift,
     return bestTypes[0], softmaxes[0]
 
 
-wavelength = np.load("Ia_wavelength_LC.npy")
-samples = np.load("Ia_samples_LC.npy")
+wavelength = np.load("Ia_wavelength_phase0.npy")
+samples = np.load("Ia_samples_phase0.npy")
 
 #breakpoint()
 
