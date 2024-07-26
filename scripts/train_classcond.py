@@ -14,6 +14,7 @@ import pandas as pd
 from flax.training import checkpoints, train_state
 from flax import struct, serialization
 import orbax.checkpoint
+import json
 
 
 from models.data_util import specdata
@@ -24,9 +25,16 @@ replicate = flax.jax_utils.replicate
 unreplicate = flax.jax_utils.unreplicate
 
 
-spec_data = specdata(master_list = "../data/ZTFBTS/ZTFBTS_TransientTable_train.csv",
-                     verbose = False)
-flux, wavelength, mask, type,redflux, redtime, redmask, greentime, greenflux, greenmask = spec_data.get_data()
+train_data = np.load("../data/training_simulated_data.npz")
+
+flux, wavelength, mask = train_data['flux'], train_data['wavelength'], train_data['mask'] 
+type, phase = train_data['type'], train_data['phase'] 
+photoflux, phototime, photomask = train_data['photoflux'], train_data['phototime'], train_data['photomask']
+photowavelength = train_data['photowavelength']
+class_encoding = json.load(open('../data/train_simulated_class_dict.json'))
+
+fluxes_std,  fluxes_mean = train_data['flux_std'], train_data['flux_mean']
+wavelengths_std, wavelengths_mean = train_data['wavelength_std'], train_data['wavelength_mean']
 
 # Define the model
 score_dict = {
@@ -39,7 +47,7 @@ score_dict = {
 vdm = classcondVariationalDiffusionModel(d_feature=1, d_t_embedding=32, 
                                          noise_scale=1e-4, 
                                          noise_schedule="learned_linear",
-                                         num_classes=spec_data.num_class,
+                                         num_classes=len(class_encoding),
                                          score_dict = score_dict,
                                          )
 

@@ -24,12 +24,13 @@ import json
 replicate = flax.jax_utils.replicate
 unreplicate = flax.jax_utils.unreplicate
 
-train_data = np.load("../data/train_data.npz")
+train_data = np.load("../data/training_simulated_data.npz")
+
 
 flux, wavelength, mask = train_data['flux'], train_data['wavelength'], train_data['mask'] 
 type, phase = train_data['type'], train_data['phase'] 
 photoflux, phototime, photomask = train_data['photoflux'], train_data['phototime'], train_data['photomask']
-class_encoding = json.load(open('../data/train_class_dict.json'))
+class_encoding = json.load(open('../data/train_simulated_class_dict.json'))
 
 fluxes_std,  fluxes_mean = train_data['flux_std'], train_data['flux_mean']
 wavelengths_std, wavelengths_mean = train_data['wavelength_std'], train_data['wavelength_mean']
@@ -90,8 +91,8 @@ def train_step(state, flux, wavelength, phase,cond, masks, key_sample):
     metrics = {"loss": jax.lax.pmean(loss, "batch")}
     return new_state, metrics
 
-n_steps = 4000
-n_batch = 32
+n_steps = 5000
+n_batch = 64
 
 key = jax.random.PRNGKey(0)
 num_local_devices = jax.local_device_count()
@@ -127,7 +128,7 @@ with trange(n_steps) as steps:
 from models.diffusion_utils import classtimecondgenerate
 
 # Generate samples
-n_samples = 100
+n_samples = 20
 wavelength_cond = (np.linspace(3000., 8000., flux.shape[1])[None, ...] - wavelengths_mean) / wavelengths_std 
 type_cond = np.array([class_encoding['SN Ia']])
 phase_cond = np.array([0.0])
@@ -158,7 +159,7 @@ plt.close()
 # np.save("../ckpt/calssphasecond_static_dict_param_phase0",unreplicate(pstate).params)
 # this is not an elegant solution but I cannot save checkpoint on supercloud
 byte_output = serialization.to_bytes(unreplicate(pstate).params)
-with open('../ckpt/calssphasecond_static_dict_param_phase0', 'wb') as f:
+with open('../ckpt/pretrain_classphasecond_static_dict_param_phase0', 'wb') as f:
     f.write(byte_output)
 
 
