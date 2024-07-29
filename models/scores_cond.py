@@ -81,7 +81,7 @@ class classtimecondTransformerScoreNet(nn.Module):
             "d_mlp": 512,
             "n_layers": 4,
             "n_heads": 4,
-            "concat_conditioning": False,
+            "concat_conditioning": True,
         }
     )
     num_classes: int = None # number of classes for conditioning, if conditing
@@ -120,11 +120,20 @@ class classtimecondTransformerScoreNet(nn.Module):
             
 
         if conditioning is None:
-            cond = t_embedding[:, None, :] + wavelength_embd * spectime_embd#[:, None, :]
+            cond = t_embedding[:, None, :] + wavelength_embd + spectime_embd#[:, None, :]
         elif self.num_classes > 1:
             conditioning = nn.Embed(self.num_classes,self.score_dict["d_model"] * flux.shape[1])(conditioning)
             conditioning = np.reshape(conditioning, (conditioning.shape[0], flux.shape[1], -1)) # reshape
-            cond = t_embedding[:, None, :] + wavelength_embd * (spectime_embd + conditioning)#[:, None, :]
+            #t_embedding = np.repeat(t_embedding[:, None, :], flux.shape[1], axis = 1) # reshape
+            # conditioning is done by all conditions concatenated, go though an MLP with skip connection
+            cond = np.concatenate([ wavelength_embd, spectime_embd, conditioning], axis=-1)
+            cond = nn.Dense(self.score_dict["d_model"])(cond)
+            cond = nn.gelu(cond)
+            cond = nn.Dense(self.score_dict["d_model"])(cond)
+            cond = t_embedding[:, None, :] + cond + wavelength_embd + spectime_embd + conditioning#[:, None, :]
+            #conditioning = nn.Embed(self.num_classes,self.score_dict["d_model"])(conditioning)
+            #cond = t_embedding[:, None, :] + wavelength_embd + spectime_embd + conditioning[:, None, :]
+        
         else:
             raise ValueError(f"there are {self.num_classes} classes, but num_classes must be > 1")
 
@@ -182,6 +191,7 @@ class photometrycondTransformerScoreNet(nn.Module):
             
         # sinusoidal -- MLP, follow the time embedding from DiT paper, embeded the same for photometry and spectrum
         wave_mlp = MLP([self.score_dict['d_model'], self.score_dict['d_model']], activation=nn.gelu)
+        #wave_mlp2 = MLP([self.score_dict['d_model'], self.score_dict['d_model']], activation=nn.gelu)
 
         wavelength_embd = get_sinusoidal_embedding(wavelength, self.d_wave_embedding)
         wavelength_embd = wave_mlp(wavelength_embd)
@@ -202,7 +212,12 @@ class photometrycondTransformerScoreNet(nn.Module):
             photometric_wavelength_embd = get_sinusoidal_embedding(photometric_wavelength, self.d_wave_embedding)
             photometric_wavelength_embd = wave_mlp(photometric_wavelength_embd)
 
-            photometric_cond = photometric_time_embd + photometric_wavelength_embd
+            photometric_cond = np.concatenate([photometric_time_embd, photometric_wavelength_embd], axis=-1)
+            photometric_cond = nn.Dense(self.score_dict["d_model"])(photometric_cond)
+            photometric_cond = nn.gelu(photometric_cond)
+            photometric_cond = nn.Dense(self.score_dict["d_model"])(photometric_cond)
+
+            photometric_cond = photometric_cond + photometric_wavelength_embd + photometric_time_embd # some skip connection
             
             #breakpoint()
             photometric_embd = Transformer(n_input=photometric_flux.shape[-1], **score_dict)(photometric_flux, photometric_cond, photometric_mask)
@@ -211,7 +226,11 @@ class photometrycondTransformerScoreNet(nn.Module):
             conditioning = nn.gelu(nn.Dense(self.score_dict["d_model"])(photometric_embd))
             conditioning = nn.Dense(self.score_dict["d_model"] * flux.shape[1])(conditioning)
             conditioning = np.reshape(conditioning, (conditioning.shape[0], flux.shape[1], -1))
-            cond = t_embedding[:, None, :] + wavelength_embd * (spectime_embd + conditioning)
+            cond = np.concatenate([wavelength_embd, spectime_embd, conditioning], axis=-1)
+            cond = nn.Dense(self.score_dict["d_model"])(cond)
+            cond = nn.gelu(cond)
+            cond = nn.Dense(self.score_dict["d_model"])(cond)
+            cond = t_embedding[:, None, :] + cond + wavelength_embd + (spectime_embd + conditioning)
 
         
 

@@ -50,25 +50,28 @@ for sns in all_types:
 
     keyy = [key for key in file['Photometry'][sns].keys()][0]
 
-    spect_tmp = np.array(file['Spectroscopy'][sns][keyy]['flux_obs'])
+    spect_tmp = np.array(file['Spectroscopy'][sns][keyy]['flux_perfect'])
     spec_mask_tmp = spect_tmp != -999.
     spec_mask.append(spec_mask_tmp)
     spect_tmp = spect_tmp * spec_mask_tmp
     spect_tmp = normalize_spectrum(spect_tmp)
     spect.append(spect_tmp)
-
+    #breakpoint()
     
 
     zs = np.array(file['Spectroscopy'][sns][keyy]['z'])
     red_shift.append(zs)
 
     wavelength_tmp = np.array(file['Spectroscopy'][sns][keyy]['wavelength'])/(1 + zs[:,None]) # redshift correction
+    wavelength_tmp *= spec_mask_tmp
     wavelength.append(wavelength_tmp)
+
+    #breakpoint()
 
     spec_time_tmp = (np.array(file['Spectroscopy'][sns][keyy]['mjd']) - np.array( file['Spectroscopy'][sns][keyy]['mjd_trigger'])) / (1 + zs)
     spec_time.append(spec_time_tmp) # this is phase
 
-    photometry_tmp = np.array(file['Photometry'][sns][keyy]['mag_obs'])
+    photometry_tmp = np.array(file['Photometry'][sns][keyy]['mag_perfect'])
     photometry_tmp = np.pad(photometry_tmp, ((0,0),(0, photometry_len-photometry_tmp.shape[1])), "constant",constant_values = -999.)
     #breakpoint()
     photo_mask_tmp = np.array(photometry_tmp) != -999.

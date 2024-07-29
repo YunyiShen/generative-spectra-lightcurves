@@ -31,18 +31,20 @@ flux, wavelength, mask = train_data['flux'], train_data['wavelength'], train_dat
 type, phase = train_data['type'], train_data['phase'] 
 photoflux, phototime, photomask = train_data['photoflux'], train_data['phototime'], train_data['photomask']
 class_encoding = json.load(open('../data/train_simulated_class_dict.json'))
+spectime_mean, spectime_std = train_data['spectime_mean'], train_data['spectime_std']
 
 fluxes_std,  fluxes_mean = train_data['flux_std'], train_data['flux_mean']
 wavelengths_std, wavelengths_mean = train_data['wavelength_std'], train_data['wavelength_mean']
 #breakpoint()
 
 # Define the model
+concat = True
 score_dict = {
             "d_model": 256,
             "d_mlp": 512,
             "n_layers": 4,
             "n_heads": 4,
-            "concat_conditioning": False,
+            "concat_conditioning": concat,
         }
 vdm = classtimecondVariationalDiffusionModel(d_feature=1, d_t_embedding=32, 
                                          noise_scale=1e-4, 
@@ -91,7 +93,7 @@ def train_step(state, flux, wavelength, phase,cond, masks, key_sample):
     metrics = {"loss": jax.lax.pmean(loss, "batch")}
     return new_state, metrics
 
-n_steps = 5000
+n_steps = 4000
 n_batch = 64
 
 key = jax.random.PRNGKey(0)
@@ -128,10 +130,10 @@ with trange(n_steps) as steps:
 from models.diffusion_utils import classtimecondgenerate
 
 # Generate samples
-n_samples = 20
+n_samples = 100
 wavelength_cond = (np.linspace(3000., 8000., flux.shape[1])[None, ...] - wavelengths_mean) / wavelengths_std 
 type_cond = np.array([class_encoding['SN Ia']])
-phase_cond = np.array([0.0])
+phase_cond = np.array([0.0 - spectime_mean]) / spectime_std
 
 
 samples = classtimecondgenerate(vdm, unreplicate(pstate).params, 
@@ -142,26 +144,27 @@ samples = classtimecondgenerate(vdm, unreplicate(pstate).params,
                             type_cond,
                             np.ones_like(wavelength_cond), steps=200)
 
-np.save("Ia_samples_phase0.npy", samples.mean()[:, :, 0] * fluxes_std + fluxes_mean)
-np.save("Ia_wavelength_phase0.npy", wavelength_cond[0]* wavelengths_std + wavelengths_mean)
+np.save(f"Ia_samples_phase0_concat{concat}.npy", samples.mean()[:, :, 0] * fluxes_std + fluxes_mean)
+np.save(f"Ia_wavelength_phase0_concat{concat}.npy", wavelength_cond[0]* wavelengths_std + wavelengths_mean)
 
 import matplotlib.pyplot as plt
-for i in range(n_samples):
+for i in range(10):
     plt.plot(wavelength_cond[0] * wavelengths_std + wavelengths_mean, 
              samples.mean()[i, :, 0] * fluxes_std + fluxes_mean) # Generated sample
 
 #plt.yscale("log")
 plt.title("Generated spectra")
-plt.savefig('Ia_samples_phase0.png')  
+plt.savefig(f'Ia_samples_phase0_concat{concat}.png')  
 plt.close()
 
 # save parameters
 # np.save("../ckpt/calssphasecond_static_dict_param_phase0",unreplicate(pstate).params)
 # this is not an elegant solution but I cannot save checkpoint on supercloud
 byte_output = serialization.to_bytes(unreplicate(pstate).params)
-with open('../ckpt/pretrain_classphasecond_static_dict_param_phase0', 'wb') as f:
+with open(f'../ckpt/pretrain_classphasecond_static_dict_param_phase0_concat{concat}', 'wb') as f:
     f.write(byte_output)
 
+print("Done!")
 
 '''
 from flax.training import orbax_utils
