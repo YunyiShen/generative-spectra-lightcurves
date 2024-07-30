@@ -47,15 +47,15 @@ def predict_just_class_for_one_star(filenames, redshift,
         return SNlabels, aggr_softmax
     return bestTypes[0], softmaxes[0]
 
-
-wavelength = np.load("Ia_wavelength_phase0.npy")
-samples = np.load("Ia_samples_phase0.npy")
+concat = True
+wavelength = np.load(f"Ia_wavelength_LC_concat{concat}.npy")
+samples = np.load(f"Ia_samples_LC_concat{concat}.npy")
 
 #breakpoint()
 
 Ia_counter = 0
 fig, ax = plt.subplots(2, 1, figsize=(10, 10))
-for i in range(4,24):
+for i in range(50):
     #breakpoint()
     spectra = np.array([[wavelength],[samples[i]]])[:,0,:]
     thetype, thescore =  predict_just_class_for_one_star(spectra, 0.0)
@@ -73,6 +73,6 @@ ax[1].set_ylabel("Flux")
 ax[0].set_title("Generated SN Ia samples (dash confirmed)")
 ax[1].set_title("Generated SN Ia samples (dash disagreed)")
 plt.show()
-plt.savefig("Ia_samples_dash.png")
+plt.savefig(f"Ia_samples_LC_dash_concat{concat}.png")
     
 print(Ia_counter)

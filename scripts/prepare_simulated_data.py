@@ -28,7 +28,8 @@ file = h5py.File("../data/ZTF_Pretrain_5Class_ZFLAT_PERFECT.hdf5", 'r')
 #file['Spectroscopy']['SN Ia']['SNIa-SALT2']
 # ['TID', 'flux_obs', 'flux_perfect', 'mjd', 'mjd_trigger', 'mwebv', 'mwebv_err', 'wavelength', 'z']
 
-all_types = ['SLSN-I', 'SN II', 'SN IIn', 'SN Ia', 'SN Ib', 'SN Ic']
+#all_types = ['SLSN-I', 'SN II', 'SN IIn', 'SN Ia', 'SN Ib', 'SN Ic']
+all_types = [ 'SN II', 'SN Ia', 'SN Ib', 'SN Ic'] # remove broken classes for now
 
 spect = []
 wavelength = []
@@ -44,7 +45,7 @@ photo_time = []
 red_shift = []
 sn_type = []
 
-photometry_len = 133
+photometry_len = 60#133
 for sns in all_types:
     
 
@@ -72,13 +73,20 @@ for sns in all_types:
     spec_time.append(spec_time_tmp) # this is phase
 
     photometry_tmp = np.array(file['Photometry'][sns][keyy]['mag_perfect'])
-    photometry_tmp = np.pad(photometry_tmp, ((0,0),(0, photometry_len-photometry_tmp.shape[1])), "constant",constant_values = -999.)
+
+    if photometry_tmp.shape[1] > photometry_len:
+        photometry_tmp = photometry_tmp[:,:photometry_len]
+    else:
+        photometry_tmp = np.pad(photometry_tmp, ((0,0),(0, photometry_len-photometry_tmp.shape[1])), "constant",constant_values = -999.)
     #breakpoint()
     photo_mask_tmp = np.array(photometry_tmp) != -999.
     photo_mask.append(photo_mask_tmp)
 
     
     photometry_tmp -= cosmo.distmod(np.array(zs)).value[:,None]
+    #photometry_tmp = 10 ** (-0.4 * photometry_tmp) # some conversion to flux
+    #photometry_tmp[np.where((1 - photo_mask_tmp)==1)] = 0.
+    #breakpoint()
     photometry_tmp *= photo_mask_tmp
 
     photometry.append(photometry_tmp)
@@ -87,11 +95,17 @@ for sns in all_types:
     
 
     photo_wavelength_tmp = get_photometry_wavelength(np.array(file['Photometry'][sns][keyy]['filter']))
-    photo_wavelength_tmp = np.pad(photo_wavelength_tmp, ((0,0),(0, photometry_len-photo_wavelength_tmp.shape[1])), "constant",constant_values = 0.)
+    if photo_wavelength_tmp.shape[1] > photometry_len:
+        photo_wavelength_tmp = photo_wavelength_tmp[:, :photometry_len]
+    else:
+        photo_wavelength_tmp = np.pad(photo_wavelength_tmp, ((0,0),(0, photometry_len-photo_wavelength_tmp.shape[1])), "constant",constant_values = 0.)
     photo_wavelength.append(photo_wavelength_tmp)
 
     photo_time_tmp = (np.array(file['Photometry'][sns][keyy]['mjd']) - np.array(file['Photometry'][sns][keyy]['mjd_trigger'])[:,None]) / (1 + zs[:,None])
-    photo_time_tmp = np.pad(photo_time_tmp, ((0,0),(0, photometry_len-photo_time_tmp.shape[1])), "constant",constant_values = 0.)
+    if photo_time_tmp.shape[1] > photometry_len:
+        photo_time_tmp = photo_time_tmp[:,:photometry_len]
+    else:
+        photo_time_tmp = np.pad(photo_time_tmp, ((0,0),(0, photometry_len-photo_time_tmp.shape[1])), "constant",constant_values = 0.)
     photo_time_tmp *= photo_mask_tmp
     
 

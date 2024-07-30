@@ -37,12 +37,13 @@ wavelengths_std, wavelengths_mean = train_data['wavelength_std'], train_data['wa
 
 
 # Define the model
+concat = True
 score_dict = {
             "d_model": 256,
             "d_mlp": 512,
             "n_layers": 4,
             "n_heads": 4,
-            "concat_conditioning": False,
+            "concat_conditioning": concat,
         }
 vdm = photometrycondVariationalDiffusionModel(d_feature=1, d_t_embedding=32, 
                                          noise_scale=1e-4, 
@@ -106,7 +107,7 @@ def train_step(state, flux, wavelength,
     metrics = {"loss": jax.lax.pmean(loss, "batch")}
     return new_state, metrics
 
-n_steps = 5000
+n_steps = 4000
 n_batch = 64
 
 key = jax.random.PRNGKey(0)
@@ -159,29 +160,31 @@ with trange(n_steps) as steps:
 from models.diffusion_utils import photometrycondgenerate
 
 # Generate samples
-n_samples = 20
+n_samples = 100
 #wavelength_cond = wavelength[4:5, : np.sum(mask[0])]
-wavelength_cond = (np.linspace(3000., 8000., flux.shape[1])[None, ...] - wavelengths_mean) / wavelengths_std 
+wavelength_cond = (np.linspace(3000., 9000., flux.shape[1])[None, ...] - wavelengths_mean) / wavelengths_std 
 type_cond = np.array([class_encoding['SN Ia']])
-phase_cond = np.array([0.0])
+
+spectime_mean, spectime_std = train_data['spectime_mean'], train_data['spectime_std']
+phase_cond = np.array([0.0 - spectime_mean]) / spectime_std
 #breakpoint()
 
 print(class_encoding)
-print(type[:1])
+print(type[2:3])
 samples = photometrycondgenerate(vdm, unreplicate(pstate).params, 
                             jax.random.PRNGKey(412141), 
                             (n_samples, len(wavelength_cond[0])), 
                             wavelength_cond[..., None], 
                             phase_cond,
                             np.ones_like(wavelength_cond), 
-                            photoflux[:1][...,None],
-                            phototime[:1][...,None],
-                            photowavelength[:1][...,None],
-                            photomask[:1],
+                            photoflux[2:3][...,None],
+                            phototime[2:3][...,None],
+                            photowavelength[2:3][...,None],
+                            photomask[2:3],
                             steps=200)
 
-np.save("Ia_samples_LC.npy", samples.mean()[:, :, 0] * fluxes_std + fluxes_mean)
-np.save("Ia_wavelength_LC.npy", wavelength_cond[0]* wavelengths_std + wavelengths_mean)
+np.save(f"Ia_samples_LC_concat{concat}.npy", samples.mean()[:, :, 0] * fluxes_std + fluxes_mean)
+np.save(f"Ia_wavelength_LC_concat{concat}.npy", wavelength_cond[0]* wavelengths_std + wavelengths_mean)
 
 import matplotlib.pyplot as plt
 for i in range(n_samples):
@@ -190,12 +193,12 @@ for i in range(n_samples):
 
 #plt.yscale("log")
 plt.title("Generated spectra")
-plt.savefig('LC_cond_samples_phase0.png')  
+plt.savefig(f'LC_cond_samples_phase0_concat{concat}.png')  
 plt.close()
 
 # save parameters
 byte_output = serialization.to_bytes(unreplicate(pstate).params)
-with open('../ckpt/pretrain_photometrycond_static_dict_param', 'wb') as f:
+with open(f'../ckpt/pretrain_photometrycond_static_dict_param_concat{concat}', 'wb') as f:
     f.write(byte_output)
 # this is not an elegant solution but I cannot save checkpoint on supercloud
 

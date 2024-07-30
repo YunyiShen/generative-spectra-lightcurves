@@ -94,7 +94,7 @@ def train_step(state, flux, wavelength, phase,cond, masks, key_sample):
     return new_state, metrics
 
 n_steps = 4000
-n_batch = 64
+n_batch = 32
 
 key = jax.random.PRNGKey(0)
 num_local_devices = jax.local_device_count()
@@ -131,7 +131,7 @@ from models.diffusion_utils import classtimecondgenerate
 
 # Generate samples
 n_samples = 100
-wavelength_cond = (np.linspace(3000., 8000., flux.shape[1])[None, ...] - wavelengths_mean) / wavelengths_std 
+wavelength_cond = (np.linspace(3000., 9000., flux.shape[1])[None, ...] - wavelengths_mean) / wavelengths_std 
 type_cond = np.array([class_encoding['SN Ia']])
 phase_cond = np.array([0.0 - spectime_mean]) / spectime_std
 
