@@ -4,7 +4,7 @@ import jax
 import jax.numpy as np
 import flax.linen as nn
 
-from models.transformer import Transformer
+from models.transformer import Transformer, TransformerCrossattn
 from models.mlp import MLP
 
 from models.diffusion_utils import get_timestep_embedding,get_sinusoidal_embedding
@@ -71,7 +71,7 @@ class classcondTransformerScoreNet(nn.Module):
 class classtimecondTransformerScoreNet(nn.Module):
     """Transformer score network."""
 
-    d_t_embedding: int = 32
+    d_t_embedding: int = 64
     d_wave_embedding: int = 64
     d_spectime_embedding: int = 64
 
@@ -82,6 +82,7 @@ class classtimecondTransformerScoreNet(nn.Module):
             "n_layers": 4,
             "n_heads": 4,
             "concat_conditioning": True,
+            "crossattn": False,
         }
     )
     num_classes: int = None # number of classes for conditioning, if conditing
@@ -93,9 +94,12 @@ class classtimecondTransformerScoreNet(nn.Module):
         t = t * np.ones(flux.shape[0])  # Ensure t is a vector
 
 
-        t_embedding = get_timestep_embedding(t, self.d_t_embedding)    
+        t_embedding = get_timestep_embedding(t, self.d_t_embedding)
+        #skip = t_embedding    
         t_embedding = nn.gelu(nn.Dense(self.score_dict["d_model"])(t_embedding))
+        #t_embedding = nn.gelu(nn.Dense(self.score_dict["d_model"])(t_embedding))
         t_embedding = nn.Dense(self.score_dict["d_model"])(t_embedding)
+        t_embedding = t_embedding #+ skip
         #t_embedding = np.sin( nn.Dense(self.score_dict["d_model"])(t[:,None]))
         #breakpoint()
         if wavelength is None:
@@ -105,16 +109,20 @@ class classtimecondTransformerScoreNet(nn.Module):
             
             # sinusoidal -- MLP, follow the time embedding from DiT paper
             wavelength_embd = get_sinusoidal_embedding(wavelength, self.d_wave_embedding)
+            #skip = wavelength_embd
             wavelength_embd = nn.gelu(nn.Dense(self.score_dict["d_model"])(wavelength_embd))
             wavelength_embd = nn.Dense(self.score_dict["d_model"])(wavelength_embd)
+            wavelength_embd = wavelength_embd #+ skip
 
         if spectime is None:
             spectime_embd = 0.0
         else:
             #breakpoint()
             spectime_embd = get_timestep_embedding(spectime, self.d_spectime_embedding)
+            #skip = spectime_embd
             spectime_embd = nn.gelu(nn.Dense(self.score_dict["d_model"])(spectime_embd))
             spectime_embd = nn.Dense(self.score_dict["d_model"] * flux.shape[1])(spectime_embd)
+            spectime_embd = spectime_embd #+ skip
             spectime_embd = np.reshape(spectime_embd, (spectime_embd.shape[0], flux.shape[1], -1)) # reshape
 
             
@@ -140,8 +148,13 @@ class classtimecondTransformerScoreNet(nn.Module):
         # Make copy of score dict since original cannot be in-place modified; remove `score` argument before passing to Net
         score_dict = dict(self.score_dict)
         score_dict.pop("score", None)
+        score_dict.pop("crossattn", None)
         #breakpoint()
-        h = Transformer(n_input=flux.shape[-1], **score_dict)(flux, cond, mask)
+        if self.score_dict["crossattn"]:
+            score_dict.pop("concat_conditioning", None)
+            h = TransformerCrossattn(n_input=flux.shape[-1], **score_dict)(flux, cond, mask)
+        else:
+            h = Transformer(n_input=flux.shape[-1], **score_dict)(flux, cond, mask)
 
         return flux + h
 
@@ -160,16 +173,27 @@ class photometrycondTransformerScoreNet(nn.Module):
             "d_mlp": 512,
             "n_layers": 4,
             "n_heads": 4,
+            "concat_conditioning": True,
         }
     )
     num_classes: int = None # number of classes for conditioning, if conditing
     adanorm: bool = False
+    transformer_dict_photometry: dict = dataclasses.field(
+        default_factory=lambda: {
+            "d_model": 256,
+            "d_mlp": 512,
+            "n_layers": 4,
+            "n_heads": 4,
+            "concat_conditioning": False,
+        }
+    )
 
     @nn.compact
     def __call__(self, flux, t, wavelength , spectime, mask, 
                  photometric_flux, photometric_time , photometric_wavelength, 
                  photometric_mask): 
         assert np.isscalar(t) or len(t.shape) == 0 or len(t.shape) == 1
+        assert self.transformer_dict_photometry['d_model'] == self.score_dict['d_model']
         t = t * np.ones(flux.shape[0])  # Ensure t is a vector
 
         t_embedding = get_timestep_embedding(t, self.d_t_embedding)    
@@ -199,6 +223,8 @@ class photometrycondTransformerScoreNet(nn.Module):
         # Make copy of score dict since original cannot be in-place modified; remove `score` argument before passing to Net
         score_dict = dict(self.score_dict)
         score_dict.pop("score", None)
+        transformer_dict_photometry = dict(self.transformer_dict_photometry)
+        transformer_dict_photometry.pop("score", None)
 
         if photometric_flux is None:
             cond = t_embedding[:, None, :] + wavelength_embd * spectime_embd
@@ -220,7 +246,7 @@ class photometrycondTransformerScoreNet(nn.Module):
             photometric_cond = photometric_cond + photometric_wavelength_embd + photometric_time_embd # some skip connection
             
             #breakpoint()
-            photometric_embd = Transformer(n_input=photometric_flux.shape[-1], **score_dict)(photometric_flux, photometric_cond, photometric_mask)
+            photometric_embd = Transformer(n_input=photometric_flux.shape[-1], **transformer_dict_photometry)(photometric_flux, photometric_cond, photometric_mask)
             photometric_embd = np.reshape(photometric_embd, (photometric_embd.shape[0], -1)) # flatten
             
             conditioning = nn.gelu(nn.Dense(self.score_dict["d_model"])(photometric_embd))

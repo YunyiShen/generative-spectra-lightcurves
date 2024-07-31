@@ -298,6 +298,7 @@ class classtimecondVariationalDiffusionModel(nn.Module):
             "n_layers": 4,
             "n_heads": 4,
             "concat_conditioning": True,
+            "crossattn": False,
         }
     )
     scale_non_linear_init: bool = False
