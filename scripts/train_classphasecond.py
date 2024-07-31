@@ -42,11 +42,12 @@ concat = True
 score_dict = {
             "d_model": 256,
             "d_mlp": 512,
-            "n_layers": 4,
+            "n_layers": 6,
             "n_heads": 4,
             "concat_conditioning": concat,
         }
-vdm = classtimecondVariationalDiffusionModel(d_feature=1, d_t_embedding=32, 
+vdm = classtimecondVariationalDiffusionModel(d_feature=1,
+                                              
                                          noise_scale=1e-4, 
                                          noise_schedule="learned_linear",
                                          num_classes=len(class_encoding),
@@ -59,7 +60,7 @@ out, params = vdm.init_with_output(init_rngs, flux[:2, :, None], wavelength[:2, 
 schedule = optax.warmup_cosine_decay_schedule(
     init_value=0.0,
     peak_value=3e-4,
-    warmup_steps=500,
+    warmup_steps= 500,
     decay_steps=3000,
 )
 
@@ -94,7 +95,7 @@ def train_step(state, flux, wavelength, phase,cond, masks, key_sample):
     return new_state, metrics
 
 n_steps = 4000
-n_batch = 32
+n_batch = 64
 
 key = jax.random.PRNGKey(0)
 num_local_devices = jax.local_device_count()
