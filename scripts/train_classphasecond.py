@@ -16,9 +16,7 @@ from flax import struct, serialization
 import orbax.checkpoint
 
 
-from models.data_util import specdata
-from models.diffusion_cond import classtimecondVariationalDiffusionModel
-from models.transformer import Transformer
+from models.diffusion_cond import classtimecondVariationalDiffusionModel2
 import json
 
 replicate = flax.jax_utils.replicate
@@ -38,15 +36,23 @@ wavelengths_std, wavelengths_mean = train_data['wavelength_std'], train_data['wa
 #breakpoint()
 
 # Define the model
-concat = True
+'''
+# a seemingly not bad one
 score_dict = {
             "d_model": 256,
             "d_mlp": 512,
+            "n_layers": 8,
+            "n_heads": 4,
+        }
+'''
+
+score_dict = {
+            "d_model": 512,
+            "d_mlp": 512,
             "n_layers": 6,
             "n_heads": 4,
-            "concat_conditioning": concat,
         }
-vdm = classtimecondVariationalDiffusionModel(d_feature=1,
+vdm = classtimecondVariationalDiffusionModel2(d_feature=1,
                                               
                                          noise_scale=1e-4, 
                                          noise_schedule="learned_linear",
@@ -129,41 +135,71 @@ with trange(n_steps) as steps:
 
 ### test for generating
 from models.diffusion_utils import classtimecondgenerate
+# save parameters
+# np.save("../ckpt/calssphasecond_static_dict_param_phase0",unreplicate(pstate).params)
+# this is not an elegant solution but I cannot save checkpoint on supercloud
+byte_output = serialization.to_bytes(unreplicate(pstate).params)
+with open(f'../ckpt/pretrain_classphasecond_static_dict_param_phase0_crossattn2', 'wb') as f:
+    f.write(byte_output)
 
-# Generate samples
-n_samples = 100
+
+
+from matplotlib import pyplot as plt
+n_samples = 50
+all_types = ['SN II',  'SN Ia', 'SN Ib', 'SN Ic']
 wavelength_cond = (np.linspace(3000., 9000., flux.shape[1])[None, ...] - wavelengths_mean) / wavelengths_std 
-type_cond = np.array([class_encoding['SN Ia']])
-phase_cond = np.array([0.0 - spectime_mean]) / spectime_std
-
-
-samples = classtimecondgenerate(vdm, unreplicate(pstate).params, 
-                            jax.random.PRNGKey(412141), 
+wavelength_cond = np.repeat(wavelength_cond, n_samples, axis=0)#phase_cond = np.array([0.])
+#phases = (0.0 - spectime_mean)/spectime_std
+#breakpoint()
+fig, ax1 = plt.subplots(1, 1, figsize=(7, 6))
+'''
+sample = classtimecondgenerate(vdm, params, jax.random.PRNGKey(42), 
                             (n_samples, len(wavelength_cond[0])), 
                             wavelength_cond[..., None], 
                             phase_cond,
                             type_cond,
                             np.ones_like(wavelength_cond), steps=200)
-
-np.save(f"Ia_samples_phase0_concat{concat}.npy", samples.mean()[:, :, 0] * fluxes_std + fluxes_mean)
-np.save(f"Ia_wavelength_phase0_concat{concat}.npy", wavelength_cond[0]* wavelengths_std + wavelengths_mean)
-
-import matplotlib.pyplot as plt
-for i in range(10):
+samples = sample.mean()[:,:,0]
+np.save(f"../samples/II_phase{phase}.npy", samples)
+for i in range(n_samples):
     plt.plot(wavelength_cond[0] * wavelengths_std + wavelengths_mean, 
-             samples.mean()[i, :, 0] * fluxes_std + fluxes_mean) # Generated sample
+             samples[i] * fluxes_std + fluxes_mean) # Generated sample
 
 #plt.yscale("log")
 plt.title("Generated spectra")
-plt.savefig(f'Ia_samples_phase0_concat{concat}.png')  
+plt.savefig('../samples/II_samples_phase0.png')  
 plt.close()
+'''
+print("generate all classes...")
 
-# save parameters
-# np.save("../ckpt/calssphasecond_static_dict_param_phase0",unreplicate(pstate).params)
-# this is not an elegant solution but I cannot save checkpoint on supercloud
-byte_output = serialization.to_bytes(unreplicate(pstate).params)
-with open(f'../ckpt/pretrain_classphasecond_static_dict_param_phase0_concat{concat}', 'wb') as f:
-    f.write(byte_output)
+#breakpoint()
+from tqdm import tqdm
+sss = 0
+#breakpoint()
+for thistype in tqdm(all_types):
+    phase_cond = np.array([(0.0 - spectime_mean)/spectime_std] * n_samples)
+    type_cond = np.array([class_encoding[thistype]]* n_samples)
+    sample = classtimecondgenerate(vdm, unreplicate(pstate).params, jax.random.PRNGKey(12345+sss), 
+                            (n_samples, len(wavelength_cond[0])), 
+                            wavelength_cond[..., None], 
+                            phase_cond,
+                            type_cond,
+                            np.ones_like(wavelength_cond), steps=200)
+    samples = sample.mean()[:,:,0]
+    sss += 1
+    np.save(f"../samples/simu_classphasecond_class{thistype}_crossattn2.npy", samples)
+
+    for i in range(10):
+        plt.plot(wavelength_cond[0] * wavelengths_std + wavelengths_mean, 
+             samples[i, :] * fluxes_std + fluxes_mean) # Generated sample
+    plt.title(f"Generated {thistype} spectra")
+    plt.savefig(f'{thistype}_samples_phase0_crossattn2.png')  
+    plt.close()
+
+
+
+
+
 
 print("Done!")
 
