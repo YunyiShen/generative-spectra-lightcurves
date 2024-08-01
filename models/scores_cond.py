@@ -4,7 +4,7 @@ import jax
 import jax.numpy as np
 import flax.linen as nn
 
-from models.transformer import Transformer, TransformerCrossattn
+from models.transformer import Transformer, TransformerCrossattn, TransformerWavelength
 from models.mlp import MLP
 
 from models.diffusion_utils import get_timestep_embedding,get_sinusoidal_embedding
@@ -157,6 +157,84 @@ class classtimecondTransformerScoreNet(nn.Module):
             h = Transformer(n_input=flux.shape[-1], **score_dict)(flux, cond, mask)
 
         return flux + h
+
+
+
+
+
+
+class classtimecondTransformerScoreNet2(nn.Module):
+    """Transformer score network using cross attentions."""
+
+    d_t_embedding: int = 64
+    d_spectime_embedding: int = 64
+    d_wave_embedding: int = 64
+
+    score_dict: dict = dataclasses.field(
+        default_factory=lambda: {
+            "d_model": 256,
+            "d_mlp": 512,
+            "n_layers": 4,
+            "n_heads": 4,
+            "concat_wavelength": True,
+        }
+    )
+    num_classes: int = None # number of classes for conditioning, if conditing
+    adanorm: bool = False
+
+    @nn.compact
+    def __call__(self, flux, t, wavelength, spectime, conditioning, mask):
+        assert np.isscalar(t) or len(t.shape) == 0 or len(t.shape) == 1
+        t = t * np.ones(flux.shape[0])  # Ensure t is a vector
+
+
+        t_embedding = get_timestep_embedding(t, self.d_t_embedding)
+        #skip = t_embedding    
+        t_embedding = nn.gelu(nn.Dense(self.score_dict["d_model"])(t_embedding))
+        #t_embedding = nn.gelu(nn.Dense(self.score_dict["d_model"])(t_embedding))
+        t_embedding = nn.Dense(self.score_dict["d_model"])(t_embedding)
+        t_embedding = t_embedding #+ skip
+        #t_embedding = np.sin( nn.Dense(self.score_dict["d_model"])(t[:,None]))
+        #breakpoint()
+        
+            
+        # sinusoidal -- MLP, follow the time embedding from DiT paper
+        wavelength_embd = get_sinusoidal_embedding(wavelength, self.d_wave_embedding)
+        wavelength_embd = nn.gelu(nn.Dense(self.score_dict["d_model"])(wavelength_embd))
+        wavelength_embd = nn.Dense(self.score_dict["d_model"])(wavelength_embd)
+        wavelength_embd = wavelength_embd 
+
+        
+        #breakpoint()
+        spectime_embd = get_timestep_embedding(spectime, self.d_spectime_embedding)
+        spectime_embd = nn.gelu(nn.Dense(self.score_dict["d_model"])(spectime_embd))
+        spectime_embd = nn.Dense(self.score_dict["d_model"])(spectime_embd)
+        spectime_embd = spectime_embd 
+
+        if conditioning is None:
+            cond = np.concatenate([t_embedding[:, None, :], spectime_embd[:,None,:]], axis=1)
+        elif self.num_classes > 1:
+            conditioning = nn.Embed(self.num_classes,self.score_dict["d_model"])(conditioning)
+            
+            cond = np.concatenate([t_embedding[:,None,:],
+                                   spectime_embd[:,None,:], 
+                                   conditioning[:,None,:]], axis=1)
+            cond = nn.Dense(self.score_dict["d_model"])(cond)
+            cond = nn.gelu(cond)
+            cond = nn.Dense(self.score_dict["d_model"])(cond)
+        else:
+            raise ValueError(f"there are {self.num_classes} classes, but num_classes must be > 1")
+
+        # Make copy of score dict since original cannot be in-place modified; remove `score` argument before passing to Net
+        score_dict = dict(self.score_dict)
+        score_dict.pop("score", None)
+        #breakpoint()
+        h = TransformerWavelength(n_input=flux.shape[-1], **score_dict)(flux, wavelength_embd, cond, mask)
+
+        return flux + h
+
+
+
 
 
 
