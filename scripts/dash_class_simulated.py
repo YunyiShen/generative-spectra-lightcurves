@@ -47,11 +47,11 @@ def predict_just_class_for_one_star(filenames, redshift,
         return SNlabels, aggr_softmax
     return bestTypes[0], softmaxes[0]
 
-all_types = ['SN II',  'SN Ia', 'SN Ib', 'SN Ic']
-wavelength = np.load(f"Ia_wavelength_phase0_concatTrue.npy")
+all_types = ['SN II', 'SN Ia', 'SN Ib', 'SN Ic']
+for thetypegt in all_types:
 
-for thistype in all_types:
-    samples = np.load(f"../samples/simu_classphasecond_class{thistype}_crossattn2.npy")
+    wavelength = np.load(f"{thetypegt}_wavelength.npy")
+    samples = np.load(f"{thetypegt}_simulated.npy")
 
     #breakpoint()
 
@@ -59,31 +59,22 @@ for thistype in all_types:
     fig, ax = plt.subplots(2, 1, figsize=(10, 10))
     for i in range(50):
         #breakpoint()
-        spectra = np.array([[wavelength],[samples[i]]])[:,0,:]
+        spectra = np.array([[wavelength[i][wavelength[i]>1.]],[samples[i][wavelength[i]>1.]]])[:,0,:]
         thetype, thescore =  predict_just_class_for_one_star(spectra, 0.0)
         #print(thetype[np.argsort(thescore)], thescore[np.argsort(thescore)])
-        if thistype.replace("SN ", "") in thetype[np.argsort(thescore)][-1]:
+        if thetypegt.replace("SN ","") in thetype[np.argsort(thescore)][-1]:
             Ia_counter += 1
-            ax[0].plot(wavelength, samples[i], alpha=0.8)
+            ax[0].plot(wavelength[i][wavelength[i]>1.], samples[i][wavelength[i]>1.], alpha=0.8)
         else:
-            ax[1].plot(wavelength, samples[i], alpha=0.8)
+            ax[1].plot(wavelength[i][wavelength[i]>1.], samples[i][wavelength[i]>1.], alpha=0.8)
 
     ax[0].set_xlabel("Wavelength")
     ax[0].set_ylabel("Flux")
     ax[1].set_xlabel("Wavelength")
     ax[1].set_ylabel("Flux")
-    ax[0].set_title(f"Generated SN {thistype} samples (dash confirmed)")
-    ax[1].set_title(f"Generated SN {thistype} samples (dash disagreed)")
+    ax[0].set_title(f"Simulated SN {thetypegt} samples (dash confirmed)")
+    ax[1].set_title(f"Simulated SN {thetypegt} samples (dash disagreed)")
     plt.show()
-    plt.savefig(f"{thistype}_samples_phase0_crossattn2_dash.png")
-    
-    print(f"number of hits {Ia_counter} in {thistype}")
-
-
-'''
-Simulated data: 
-number of hits 38 in SN II
-number of hits 48 in SN Ia
-number of hits 19 in SN Ib
-number of hits 41 in SN Ic
-'''
+    plt.savefig(f"{thetypegt}_simulated_dash.png")
+    print(f"number of hits {Ia_counter} in {thetypegt}")
+    #print(Ia_counter)
