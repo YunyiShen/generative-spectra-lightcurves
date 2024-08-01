@@ -32,7 +32,7 @@ class MultiHeadAttentionBlock(nn.Module):
                 kernel_init=nn.initializers.xavier_uniform(),
                 bias_init=nn.initializers.zeros,
             )(y_sa, x_sa, mask=mask)
-            x_sa = nn.LayerNorm()(x_sa)
+            #x_sa = nn.LayerNorm()(x_sa)
             x_sa = nn.MultiHeadDotProductAttention(
                 num_heads=self.n_heads,
                 kernel_init=nn.initializers.xavier_uniform(),
