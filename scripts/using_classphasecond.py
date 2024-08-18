@@ -9,7 +9,7 @@ from tqdm import trange
 from celluloid import Camera
 from matplotlib import pyplot as plt
 
-from models.diffusion_cond import classtimecondVariationalDiffusionModel
+from models.diffusion_cond import classtimecondVariationalDiffusionModel2
 from models.diffusion_utils import classtimecondgenerate
 
 
@@ -24,13 +24,13 @@ spectime_std, spectime_mean = train_data['spectime_std'], train_data['spectime_m
 concat = True
 
 score_dict = {
-            "d_model": 256,
+            "d_model": 512,
             "d_mlp": 512,
-            "n_layers": 4,
+            "n_layers": 6,
             "n_heads": 4,
-            "concat_conditioning": concat,
         }
-vdm = classtimecondVariationalDiffusionModel(d_feature=1, d_t_embedding=32, 
+vdm = classtimecondVariationalDiffusionModel2(d_feature=1,
+                                              
                                          noise_scale=1e-4, 
                                          noise_schedule="learned_linear",
                                          num_classes=len(class_encoding),
@@ -41,46 +41,29 @@ type, phase = train_data['type'], train_data['phase']
 init_rngs = {'params': jax.random.key(0), 'sample': jax.random.key(1)}
 out, params = vdm.init_with_output(init_rngs, flux[:2, :, None], wavelength[:2, :, None], phase[:2], type[:2], mask[:2])
 
-with open(f'../ckpt/pretrain_classphasecond_static_dict_param_phase0_concat{concat}', 'rb') as f:
+with open(f'../ckpt/pretrain_classphasecond_static_dict_param_phase0_crossattn2', 'rb') as f:
     serialized_model = f.read()
 
 params = flax.serialization.from_bytes(params, serialized_model)
 
 
+n_samples = 50
 wavelength_cond = (np.linspace(3000., 8000., flux.shape[1])[None, ...] - wavelengths_mean) / wavelengths_std 
-type_cond = np.array([class_encoding['SN Ia']])
+wavelength_cond = np.repeat(wavelength_cond, n_samples, axis=0)
+type_cond = np.array([class_encoding['SN Ia']] * n_samples)
 #phase_cond = np.array([0.])
 phases = (np.linspace(0, 30, 31) - spectime_mean)/spectime_std
 #breakpoint()
-n_samples = 50
+
 fig, ax1 = plt.subplots(1, 1, figsize=(7, 6))
-'''
-sample = classtimecondgenerate(vdm, params, jax.random.PRNGKey(42), 
-                            (n_samples, len(wavelength_cond[0])), 
-                            wavelength_cond[..., None], 
-                            phase_cond,
-                            type_cond,
-                            np.ones_like(wavelength_cond), steps=200)
-samples = sample.mean()[:,:,0]
-np.save(f"../samples/II_phase{phase}.npy", samples)
-for i in range(n_samples):
-    plt.plot(wavelength_cond[0] * wavelengths_std + wavelengths_mean, 
-             samples[i] * fluxes_std + fluxes_mean) # Generated sample
-
-#plt.yscale("log")
-plt.title("Generated spectra")
-plt.savefig('../samples/II_samples_phase0.png')  
-plt.close()
-'''
-
 
 camera = Camera(fig)
 #breakpoint()
 from tqdm import tqdm
 sss = 0
 for phase in tqdm(phases):
-    phase_cond = np.array([phase])
-    sample = classtimecondgenerate(vdm, params, jax.random.PRNGKey(12345+sss), 
+    phase_cond = np.array([phase] * n_samples)
+    sample = classtimecondgenerate(vdm, params, jax.random.PRNGKey(12345), 
                             (n_samples, len(wavelength_cond[0])), 
                             wavelength_cond[..., None], 
                             phase_cond,

@@ -6,6 +6,11 @@ import os
 from tqdm import tqdm
 from models.gp import gp_peak_time
 
+def normalizing_spectra(spectra):
+    # normalizing to 0-1 range for each spectrum
+    min_val = np.min(spectra, axis = 1, keepdims = True)
+    max_val = np.max(spectra, axis = 1, keepdims = True)
+    return (spectra - min_val)/(max_val - min_val)
 
 
 class specdata:
