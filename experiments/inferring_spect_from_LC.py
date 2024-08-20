@@ -59,7 +59,8 @@ test_data = np.load("../data/testing_simulated_data.npz")
 photoflux, phototime, photomask = test_data['photoflux'], test_data['phototime'], test_data['photomask']
 photowavelength = test_data['photowavelength']
 
-n_test_data = min(photoflux.shape[0], 5000)
+first = 100
+n_test_data = min(photoflux.shape[0], first)
 
 n_samples = 100
 wavelength_cond = (np.linspace(3000., 8000., flux.shape[1])[None, ...] - wavelengths_mean) / wavelengths_std
@@ -71,6 +72,20 @@ phase_cond = np.array([0.0 - spectime_mean] * n_test_data) / spectime_std
 
 from tqdm import tqdm
 for i in tqdm(range(n_samples)):
+
+    
+    
+    photoflux, phototime, photomask = test_data['photoflux'], test_data['phototime'], test_data['photomask']
+    photowavelength = test_data['photowavelength']
+
+    wavelength_cond = (np.linspace(3000., 8000., flux.shape[1])[None, ...] - wavelengths_mean) / wavelengths_std
+    wavelength_cond = np.repeat(wavelength_cond, n_test_data, axis=0)
+
+    spectime_mean, spectime_std = train_data['spectime_mean'], train_data['spectime_std']
+    phase_cond = np.array([0.0 - spectime_mean] * n_test_data) / spectime_std
+    
+
+
     #breakpoint()
     sample = photometrycondgenerate(vdm, params, jax.random.PRNGKey(42 + i), 
                             (n_test_data, len(wavelength_cond[0])), 
@@ -88,6 +103,9 @@ for i in tqdm(range(n_samples)):
     posterior_samples.append(sample)
 
 posterior_samples = np.stack(posterior_samples, axis=-1)
-np.savez("../samples/posterior_test_photometrycond.npz", 
-         posterior_samples=posterior_samples)
+np.savez(f"../samples/posterior_test_photometrycond_first{n_test_data}.npz", 
+         posterior_samples=posterior_samples, 
+         gt = normalizing_spectra(test_data['flux'][:n_test_data]),
+         SNtype = test_data['type'][:n_test_data],
+         )
 
