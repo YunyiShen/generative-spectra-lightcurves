@@ -24,13 +24,13 @@ import json
 replicate = flax.jax_utils.replicate
 unreplicate = flax.jax_utils.unreplicate
 
-train_data = np.load("../data/training_simulated_data.npz")
+train_data = np.load("../data/training_simulated_data_Ia.npz")
 
 flux, wavelength, mask = train_data['flux'], train_data['wavelength'], train_data['mask'] 
 type, phase = train_data['type'], train_data['phase'] 
 photoflux, phototime, photomask = train_data['photoflux'], train_data['phototime'], train_data['photomask']
 photowavelength = train_data['photowavelength']
-class_encoding = json.load(open('../data/train_simulated_class_dict.json'))
+class_encoding = json.load(open('../data/train_simulated_class_dict_Ia.json'))
 
 fluxes_std,  fluxes_mean = train_data['flux_std'], train_data['flux_mean']
 wavelengths_std, wavelengths_mean = train_data['wavelength_std'], train_data['wavelength_mean']
@@ -199,7 +199,7 @@ plt.close()
 
 # save parameters
 byte_output = serialization.to_bytes(unreplicate(pstate).params)
-with open(f'../ckpt/pretrain_photometrycond_static_dict_param_cross_attn', 'wb') as f:
+with open(f'../ckpt/pretrain_photometrycond_static_dict_param_cross_attn_Ia_only', 'wb') as f:
     f.write(byte_output)
 # this is not an elegant solution but I cannot save checkpoint on supercloud
 
