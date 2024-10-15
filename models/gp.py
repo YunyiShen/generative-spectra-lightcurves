@@ -20,6 +20,7 @@ def mean_function(params, X):
 
 def gp_peak_time(time, flux):
     # normalize time and flux
+    #breakpoint()
     time_mean = np.mean(time)
     time_std = np.std(time)
     time = (time - time_mean) / time_std
@@ -67,6 +68,6 @@ def gp_peak_time(time, flux):
 
     prd = cond.loc
     #breakpoint()
-    peak = time_grid[np.argmax(prd)] * time_std + time_mean
-
+    peak = time_grid[np.argmin(prd)] * time_std + time_mean
+    #breakpoint()
     return peak

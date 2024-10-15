@@ -3,6 +3,7 @@ import numpy as np
 import astropy
 from astropy.cosmology import FlatLambdaCDM
 import astropy.units as u
+import extinction
 
 
 def get_photometry_wavelength(filter_code):
@@ -11,10 +12,10 @@ def get_photometry_wavelength(filter_code):
 def normalize_spectrum(spectra):
     return (spectra - np.min(spectra,axis = 1)[:,None]) / (np.max(spectra,axis=1) - np.min(spectra,axis = 1))[:,None]   
 
-def z_score(thingy):
+def z_score(thingy, subtract_mean = True):
     mean_thingy = np.mean(thingy)
     std_thingy = np.std(thingy)
-    return (thingy - mean_thingy) / std_thingy, mean_thingy, std_thingy
+    return (thingy - (subtract_mean * mean_thingy)) / std_thingy, mean_thingy, std_thingy
 
 
 cosmo = FlatLambdaCDM(H0=70 * u.km / u.s / u.Mpc, Om0=0.3)
@@ -29,7 +30,8 @@ file = h5py.File("../data/ZTF_Pretrain_5Class_ZFLAT_PERFECT.hdf5", 'r')
 # ['TID', 'flux_obs', 'flux_perfect', 'mjd', 'mjd_trigger', 'mwebv', 'mwebv_err', 'wavelength', 'z']
 
 #all_types = ['SLSN-I', 'SN II', 'SN IIn', 'SN Ia', 'SN Ib', 'SN Ic']
-all_types = [ 'SN II', 'SN Ia', 'SN Ib', 'SN Ic'] # remove broken classes for now
+#all_types = [ 'SN II', 'SN Ia', 'SN Ib', 'SN Ic'] # remove broken classes for now
+all_types = [ 'SN Ia'] # remove broken classes for now
 
 spect = []
 wavelength = []
@@ -50,6 +52,7 @@ for sns in all_types:
     
 
     keyy = [key for key in file['Photometry'][sns].keys()][0]
+    transient_model = file['Spectroscopy'][sns][keyy]['mwebv']
 
     spect_tmp = np.array(file['Spectroscopy'][sns][keyy]['flux_perfect'])
     spec_mask_tmp = spect_tmp != -999.
@@ -83,23 +86,33 @@ for sns in all_types:
     photo_mask.append(photo_mask_tmp)
 
     
-    photometry_tmp -= cosmo.distmod(np.array(zs)).value[:,None]
-    #photometry_tmp = 10 ** (-0.4 * photometry_tmp) # some conversion to flux
-    #photometry_tmp[np.where((1 - photo_mask_tmp)==1)] = 0.
-    #breakpoint()
-    photometry_tmp *= photo_mask_tmp
-
-    photometry.append(photometry_tmp)
-
     
-    
-
+    # wavelength of photometry
     photo_wavelength_tmp = get_photometry_wavelength(np.array(file['Photometry'][sns][keyy]['filter']))
     if photo_wavelength_tmp.shape[1] > photometry_len:
         photo_wavelength_tmp = photo_wavelength_tmp[:, :photometry_len]
     else:
         photo_wavelength_tmp = np.pad(photo_wavelength_tmp, ((0,0),(0, photometry_len-photo_wavelength_tmp.shape[1])), "constant",constant_values = 0.)
     photo_wavelength.append(photo_wavelength_tmp)
+
+
+
+
+    # bunch of corrections to make for photometry
+    photometry_tmp -= cosmo.distmod(np.array(zs)).value[:,None]
+    #photometry_tmp = 10 ** (-0.4 * photometry_tmp) # some conversion to flux
+    #photometry_tmp[np.where((1 - photo_mask_tmp)==1)] = 0.
+    
+
+    #mwebv = np.array(file['Photometry'][sns][keyy]['mwebv'])
+    #rv = 3.1
+    #breakpoint()
+    #extinction_correction = extinction.ccm89(photo_wavelength_tmp, a_v = mwebv*rv, r_v = rv)
+    #photometry_tmp -= extinction_correction
+    
+    photometry_tmp *= photo_mask_tmp
+    photometry.append(photometry_tmp)
+
 
     photo_time_tmp = (np.array(file['Photometry'][sns][keyy]['mjd']) - np.array(file['Photometry'][sns][keyy]['mjd_trigger'])[:,None]) / (1 + zs[:,None])
     if photo_time_tmp.shape[1] > photometry_len:
@@ -155,7 +168,7 @@ photo_mask = np.concatenate(photo_mask, axis = 0)
 
 
 photo_time = np.concatenate(photo_time, axis = 0)
-photo_time, photo_time_mean, photo_time_std = z_score(photo_time)
+photo_time, photo_time_mean, photo_time_std = z_score(photo_time,subtract_mean = False)
 
 red_shift = np.concatenate(red_shift, axis = 0)
 
@@ -169,7 +182,7 @@ split = int(0.85 * len(spect))
 
 
 
-np.savez("../data/training_simulated_data.npz", 
+np.savez("../data/training_simulated_data_Ia.npz", 
          flux=spect[idx[:split]], 
          wavelength=wavelength[idx[:split]], 
          mask=spec_mask[idx[:split]], 
@@ -191,10 +204,10 @@ np.savez("../data/training_simulated_data.npz",
          photoflux_std=photometry_std
         )
 import json
-with open('../data/train_simulated_class_dict.json', 'w') as fp:
+with open('../data/train_simulated_class_dict_Ia.json', 'w') as fp:
     json.dump(class_encoding, fp)
 
-np.savez("../data/testing_simulated_data.npz", 
+np.savez("../data/testing_simulated_data_Ia.npz", 
          flux=spect[idx[split:]], 
          wavelength=wavelength[idx[split:]], 
          mask=spec_mask[idx[split:]], 

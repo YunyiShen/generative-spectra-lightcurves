@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as np
+import numpy as onp
 import flax
 import pandas as pd
 import os
@@ -11,6 +12,15 @@ def normalizing_spectra(spectra):
     min_val = np.min(spectra, axis = 1, keepdims = True)
     max_val = np.max(spectra, axis = 1, keepdims = True)
     return (spectra - min_val)/(max_val - min_val)
+
+def random_subsample(an_array, maxlen):
+    if len(an_array) > maxlen:
+        indices = onp.random.choice(len(an_array), size=maxlen, replace=False)
+        indices.sort()
+        #breakpoint()
+        return an_array.iloc[indices]
+    else:
+        return an_array
 
 
 class specdata:
@@ -24,6 +34,7 @@ class specdata:
                  spectime = False, # this is relative to peak
                  band_for_peak = "r",
                  min_length_for_peak = 5,
+                 combine_photometry = True,
                  verbose = False):
         self.master_list = pd.read_csv(master_list, header = 0)
         self.light_curves = light_curves
@@ -72,8 +83,9 @@ class specdata:
         self.load_data(verbose = verbose)
         self.num_class = len(self.class_encoding.keys())
         self.z_score = z_score
+        self.combine_photometry = combine_photometry
         if z_score:
-            self.normalize()
+            self.normalize(combine_photometry)
 
 
     def load_data(self, verbose = False):
@@ -103,16 +115,20 @@ class specdata:
     
             if len(spectra_pd) > self.max_length:
                 if verbose:
-                    print(f"Skipping {row['ZTFID']} because it's too long with length {len(spectra_pd)}")
-                continue
+                    print(f"Subsampling {row['ZTFID']} because its spectrum is too long with length {len(spectra_pd)}")
+                    #print(f"Skipping {row['ZTFID']} because it's too long with length {len(spectra_pd)}")
+                #continue
+                spectra_pd = random_subsample(spectra_pd, self.max_length)
             if len(green) > self.photometry_len: 
                 if verbose:
-                    print(f"Skipping {row['ZTFID']} because its green band too long with length {len(green)}")
-                continue
+                    print(f"Subsampling {row['ZTFID']} because its green band too long with length {len(green)}")
+                green = random_subsample(green, self.photometry_len)
+                #continue
             if len(red) > self.photometry_len: 
                 if verbose:
-                    print(f"Skipping {row['ZTFID']} because its red band too long with length {len(red)}")
-                continue
+                    print(f"Subsampling {row['ZTFID']} because its red band too long with length {len(red)}")
+                red = random_subsample(red, self.photometry_len)
+                #continue
 
             if len(red) < self.min_length_for_peak and self.peak_band == "r":
                 if verbose:
@@ -166,20 +182,12 @@ class specdata:
                     continue
                 self.peak_time.append(peak)
 
-            green_time = np.pad(green_time, (0, self.photometry_len - len(green_time)))
-            green_flux = np.pad(green_flux, (0, self.photometry_len - len(green_flux)))
-            green_wavelength = np.pad(green_wavelength, (0, self.photometry_len - len(green_wavelength)))
-
-            green_mask = np.ones(self.photometry_len)
-            green_mask = green_mask.at[len(green):].set(0)
-
-            
 
             # red band
             red_time = red['time'].values
             red_flux = red['mag'].values
             red_wavelength = 0.*red_time + 6366.38
-
+            #breakpoint()
             #print(row['ZTFID'])
             if self.spectime and self.peak_band == "r":
                 peak = gp_peak_time(red_time, red_flux)
@@ -190,14 +198,23 @@ class specdata:
                     continue
                 self.peak_time.append(peak)
             
+            
+            green_time -= peak # relative to peak
+            green_time = np.pad(green_time, (0, self.photometry_len - len(green_time)))
+            green_flux = np.pad(green_flux, (0, self.photometry_len - len(green_flux)))
+            green_wavelength = np.pad(green_wavelength, (0, self.photometry_len - len(green_wavelength)))
 
+            green_mask = np.ones(self.photometry_len)
+            green_mask = green_mask.at[len(green):].set(0)
+
+            red_time -= peak
             red_time = np.pad(red_time, (0, self.photometry_len - len(red_time)))
             red_flux = np.pad(red_flux, (0, self.photometry_len - len(red_flux)))
             red_wavelength = np.pad(red_wavelength, (0, self.photometry_len - len(red_wavelength)))
 
             red_mask = np.ones(self.photometry_len)
             red_mask = red_mask.at[len(red):].set(0)
-
+            #breakpoint()
 
 
             # Append to the list
@@ -264,7 +281,7 @@ class specdata:
                 return self.fluxes, self.wavelengths, self.masks, self.class_list, self.spectime_list, self.green_flux, self.green_time, self.green_wavelength,self.green_mask, self.red_flux, self.red_time, self.red_wavelength,self.red_mask
             return self.fluxes, self.wavelengths, self.masks, self.class_list, self.green_flux, self.green_time, self.green_wavelength, self.green_mask, self.red_flux, self.red_time, self.red_wavelength,self.red_mask
     
-    def normalize(self):
+    def normalize(self, combine_photometry = False):
         # Normalize the fluxes and wavelengths
         self.fluxes_mean = np.mean(self.fluxes)
         self.fluxes_std = np.std(self.fluxes)
@@ -281,15 +298,28 @@ class specdata:
         self.red_mean = np.mean(self.red_flux)
         self.red_std = np.std(self.red_flux)
 
+        self.combined_mean = np.mean(np.concatenate([self.green_flux, self.red_flux], axis = 1))
+        self.combined_std = np.std(np.concatenate([self.green_flux, self.red_flux], axis = 1))
+
+
         self.green_time_mean = np.mean(self.green_time)
         self.green_time_std = np.std(self.green_time)
         self.red_time_mean = np.mean(self.red_time)
         self.red_time_std = np.std(self.red_time)
 
-        self.green_flux = (self.green_flux - self.green_mean) / self.green_std
-        self.red_flux = (self.red_flux - self.red_mean) / self.red_std
-        self.green_time = (self.green_time - self.green_time_mean) / self.green_time_std
-        self.red_time = (self.red_time - self.red_time_mean) / self.red_time_std
+        self.combined_time_mean = np.mean(np.concatenate([self.green_time, self.red_time], axis = 1))
+        self.combined_time_std = np.std(np.concatenate([self.green_time, self.red_time], axis = 1))
+
+        if combine_photometry:
+            self.green_flux = (self.green_flux - self.combined_mean) / self.combined_std
+            self.red_flux = (self.red_flux - self.combined_mean) / self.combined_std
+            self.green_time = (self.green_time) / self.combined_time_std
+            self.red_time = (self.red_time) / self.combined_time_std # peak at 0
+        else:
+            self.green_flux = (self.green_flux - self.green_mean) / self.green_std
+            self.red_flux = (self.red_flux - self.red_mean) / self.red_std
+            self.green_time = (self.green_time - self.green_time_mean) / self.green_time_std
+            self.red_time = (self.red_time - self.red_time_mean) / self.red_time_std
 
         self.green_wavelength = (self.green_wavelength - self.wavelengths_mean)/self.wavelengths_std
         self.red_wavelength = (self.red_wavelength - self.wavelengths_mean)/self.wavelengths_std
