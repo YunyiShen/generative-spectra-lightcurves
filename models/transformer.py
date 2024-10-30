@@ -202,6 +202,7 @@ class TransformerWavelength(nn.Module):
     n_layers: int = 4
     n_heads: int = 4
     concat_wavelength: bool = True
+    cond_self_attn: bool = False
 
     @nn.compact
     def __call__(self, x: np.ndarray, 
@@ -230,6 +231,10 @@ class TransformerWavelength(nn.Module):
         else: 
             mask_crossattn = None
         
+        mask_cond_attn = (
+                    None if mask_cond is None else mask_cond[..., None] * mask_cond[..., None, :]
+                )
+        #breakpoint()
         for _ in range(self.n_layers):
             # self attention 
             
@@ -241,6 +246,12 @@ class TransformerWavelength(nn.Module):
             if conditioning is not None:
                 #breakpoint()
                 # cross attention
+                if self.cond_self_attn:
+                    conditioning = MultiHeadAttentionBlock2(
+                        n_heads=self.n_heads,
+                        d_model= conditioning.shape[-1],
+                        d_mlp=self.d_mlp,
+                    )(conditioning, conditioning, mask_cond_attn) # self attention for conditioning
                 x = MultiHeadAttentionBlock2(
                     n_heads=self.n_heads,
                     d_model= x.shape[-1],

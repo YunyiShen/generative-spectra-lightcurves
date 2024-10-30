@@ -28,6 +28,7 @@ class specdata:
                  master_list = "../data/ZTFBTS/ZTFBTS_TransientTable_withpeak.csv", 
                  light_curves = "../data/ZTFBTS/light-curves",
                  spectra = "../data/ZTFBTS_spectra_dashed",
+                 post_fix = "_dashed",
                  max_length = 1024, photometry_len = 256, 
                  class_encoding = None,
                  z_score = True, 
@@ -35,6 +36,7 @@ class specdata:
                  band_for_peak = "r",
                  min_length_for_peak = 5,
                  combine_photometry = True,
+                 centering = False,
                  verbose = False):
         self.master_list = pd.read_csv(master_list, header = 0)
         self.light_curves = light_curves
@@ -79,6 +81,9 @@ class specdata:
         self.peak_band = band_for_peak
 
         self.peak_time = []
+        self.ztfid = []
+        self.post_fix = post_fix  
+        self.centering = centering
 
         self.load_data(verbose = verbose)
         self.num_class = len(self.class_encoding.keys())
@@ -90,7 +95,7 @@ class specdata:
 
     def load_data(self, verbose = False):
         for _, row in tqdm(self.master_list.iterrows(), total=len(self.master_list)):
-            if not os.path.exists(f"{self.spectra}/{row['ZTFID']}_dashed.csv"):
+            if not os.path.exists(f"{self.spectra}/{row['ZTFID']}{self.post_fix}.csv"):
                 if verbose:
                     print(f"Skipping {row['ZTFID']} because its spectrum doesn't exist")
                 continue
@@ -101,7 +106,7 @@ class specdata:
 
 
             try:
-                spectra_pd = pd.read_csv(f"{self.spectra}/{row['ZTFID']}_dashed.csv", header=None)
+                spectra_pd = pd.read_csv(f"{self.spectra}/{row['ZTFID']}{self.post_fix}.csv", header=None)
                 photometry_pd = pd.read_csv(f"{self.light_curves}/{row['ZTFID']}.csv", header=0)
                 green = photometry_pd[photometry_pd['band'] == 'g'][['time','mag']]
                 red = photometry_pd[photometry_pd['band'] == 'R'][['time','mag']]
@@ -153,22 +158,29 @@ class specdata:
             flux = spectra_pd[1].values
             flux = flux[np.argsort(wavelength)]
             wavelength = wavelength[np.argsort(wavelength)]
-    
+
+            keep = np.isfinite(flux)
+            flux = flux[keep]
+            wavelength = wavelength[keep]
+            mask = np.ones(self.max_length)
+            mask = mask.at[len(wavelength):].set(0)
+            if self.centering:
+                flux = flux - np.mean(flux)
+
             # Pad the flux, wavelength, and mask
             flux = np.pad(flux, (0, self.max_length - len(flux)))
             wavelength = np.pad(wavelength, (0, self.max_length - len(wavelength)))
-    
-            # Mask should be zero where the padding is
-            mask = np.ones(self.max_length)
-            mask = mask.at[len(spectra_pd):].set(0)
 
+            # Mask should be zero where the padding is
+            
+            #breakpoint()
             
 
             ### photometry
             # green band
             green_time = green['time'].values
             green_flux = green['mag'].values
-            green_wavelength = 0.*green_time + 1196.25
+            green_wavelength = np.ones_like(green_time) #0.*green_time + 1196.25
 
             if self.peak_band not in ["g", "r"]:
                 raise ValueError("band for calculating peak must be either 'g' (green) or 'r' (red)")
@@ -186,7 +198,7 @@ class specdata:
             # red band
             red_time = red['time'].values
             red_flux = red['mag'].values
-            red_wavelength = 0.*red_time + 6366.38
+            red_wavelength = np.zeros_like(red_time) + 2 #0.*red_time + 6366.38
             #breakpoint()
             #print(row['ZTFID'])
             if self.spectime and self.peak_band == "r":
@@ -200,20 +212,49 @@ class specdata:
             
             
             green_time -= peak # relative to peak
+            red_time -= peak
+
+            if np.all(green_time <= .1) or np.all(green_time >= -.1):
+                if verbose:
+                    print(f"Skipping {row['ZTFID']} because its green band does not cover peak")
+                continue
+            if np.all(red_time <= .1) or np.all(red_time >= -.1):
+                if verbose:
+                    print(f"Skipping {row['ZTFID']} because its red band does not cover peak")
+                continue
+
+            time_keep = np.logical_and(green_time >= -40, green_time <= 40)
+
+            if np.sum(time_keep) < 3:
+                if verbose:
+                    print(f"Skipping {row['ZTFID']} because its green band does not have enough measurement")
+                continue
+
+            green_time = green_time[time_keep]
             green_time = np.pad(green_time, (0, self.photometry_len - len(green_time)))
+            green_flux = green_flux[time_keep]
             green_flux = np.pad(green_flux, (0, self.photometry_len - len(green_flux)))
+            green_wavelength = green_wavelength[time_keep]
             green_wavelength = np.pad(green_wavelength, (0, self.photometry_len - len(green_wavelength)))
 
             green_mask = np.ones(self.photometry_len)
-            green_mask = green_mask.at[len(green):].set(0)
+            green_mask = green_mask.at[np.sum(time_keep):].set(0)
 
-            red_time -= peak
+            time_keep = np.logical_and(red_time >= -15, red_time <= 40)
+            
+            if np.sum(time_keep) < 3:
+                if verbose:
+                    print(f"Skipping {row['ZTFID']} because its red band does not have enough measurement")
+                continue
+            red_time = red_time[time_keep]
             red_time = np.pad(red_time, (0, self.photometry_len - len(red_time)))
+            red_flux = red_flux[time_keep]
             red_flux = np.pad(red_flux, (0, self.photometry_len - len(red_flux)))
+            red_wavelength = red_wavelength[time_keep]
             red_wavelength = np.pad(red_wavelength, (0, self.photometry_len - len(red_wavelength)))
 
             red_mask = np.ones(self.photometry_len)
-            red_mask = red_mask.at[len(red):].set(0)
+            red_mask = red_mask.at[np.sum(time_keep):].set(0)
             #breakpoint()
 
 
@@ -242,7 +283,8 @@ class specdata:
             self.red_flux.append(red_flux)
             self.red_wavelength.append(red_wavelength)
             self.red_mask.append(red_mask)
-
+            self.ztfid.append(row['ZTFID'])
+            #breakpoint()
         # Stack the fluxes, spectra, and masks  
         self.fluxes = np.stack(self.fluxes)
         self.wavelengths = np.stack(self.wavelengths)
@@ -261,6 +303,7 @@ class specdata:
         self.masks = self.masks.astype(bool)
         self.green_mask = self.green_mask.astype(bool)
         self.red_mask = self.red_mask.astype(bool)
+        #self.ztfid = np.array(self.ztfid)
 
         # encode classes
         if self.class_encoding is None:
@@ -269,7 +312,7 @@ class specdata:
 
         if self.spectime:
             self.spectime_list = np.array(self.spectime_list)
-            
+        
 
     def get_data(self, concat_photometry = False):
         if concat_photometry:
@@ -321,8 +364,8 @@ class specdata:
             self.green_time = (self.green_time - self.green_time_mean) / self.green_time_std
             self.red_time = (self.red_time - self.red_time_mean) / self.red_time_std
 
-        self.green_wavelength = (self.green_wavelength - self.wavelengths_mean)/self.wavelengths_std
-        self.red_wavelength = (self.red_wavelength - self.wavelengths_mean)/self.wavelengths_std
+        #self.green_wavelength = (self.green_wavelength - self.wavelengths_mean)/self.wavelengths_std
+        #self.red_wavelength = (self.red_wavelength - self.wavelengths_mean)/self.wavelengths_std
 
 
         if self.spectime:

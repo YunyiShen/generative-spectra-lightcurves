@@ -137,30 +137,57 @@ class photometrycondTransformerScoreNet2(nn.Module):
         photometric_time_embd = get_sinusoidal_embedding(photometric_time, self.d_photometrictime_embedding)
         photometric_time_embd = nn.gelu(nn.Dense(self.score_dict["d_model"])(photometric_time_embd))
         photometric_time_embd = nn.Dense(self.score_dict["d_model"])(photometric_time_embd)
-            
-        photometric_flux_embd = get_sinusoidal_embedding(photometric_flux, self.d_photometrictime_embedding)
-        photometric_flux_embd = nn.gelu(nn.Dense(self.score_dict["d_model"])(photometric_flux_embd))
+        
+        photometric_flux_embd = photometric_flux
         photometric_flux_embd = nn.Dense(self.score_dict["d_model"])(photometric_flux_embd)
-
-        photometric_wavelength_embd = get_sinusoidal_embedding(photometric_wavelength, self.d_wave_embedding)
-        photometric_wavelength_embd = wave_mlp(photometric_wavelength_embd)
-
-        photometric_cond = np.concatenate([photometric_time_embd, 
+        
+        #photometric_wavelength_embd = get_sinusoidal_embedding(photometric_wavelength, self.d_wave_embedding)
+        #photometric_wavelength_embd = wave_mlp(photometric_wavelength_embd)
+        photometric_wavelength_embd = nn.Embed(3,self.score_dict["d_model"])(photometric_wavelength)
+        #breakpoint()
+        
+        # adding together
+        #photometric_cond = photometric_wavelength_embd + photometric_flux_embd + photometric_time_embd
+        
+        
+        
+        # concat then MLP
+        photometric_cond = np.concatenate([photometric_time, 
                                            photometric_wavelength_embd, 
-                                           photometric_flux_embd], axis=-1)
-        photometric_cond = nn.Dense(self.score_dict["d_model"])(photometric_cond)
+                                           photometric_flux], axis=-1)
+        photometric_cond =  nn.Dense(self.score_dict["d_model"])(photometric_cond)
         photometric_cond = nn.gelu(photometric_cond)
         photometric_cond = nn.Dense(self.score_dict["d_model"])(photometric_cond)
         
+        
+        #direct concat
         cond = np.concatenate([t_embedding[:,None,:],
                                 spectime_embd[:,None,:], 
                                 photometric_cond], axis=1)
+        '''
+        # transformer for photometry
+        score_dict2 = dict(self.score_dict)
+        score_dict2.pop("score", None)
+        score_dict2.pop("concat_wavelength", None)
+        photometric_cond = Transformer(n_input=photometric_cond.shape[-1], 
+                                       **score_dict2)(photometric_cond, mask = photometric_mask)
+        photometric_cond = np.sum(photometric_cond * photometric_mask[:,:,None], axis=1)/np.sum(photometric_mask[:,:,None], axis = 1) # average over the photometric time
+
+        cond = np.concatenate([t_embedding[:,None,:],
+                                spectime_embd[:,None,:], 
+                                photometric_cond[:,None,:]], axis=1)
            
-            
+        '''
+        cond = nn.Dense(self.score_dict["d_model"])(cond)
+        cond = nn.gelu(cond)
+        cond = nn.Dense(self.score_dict["d_model"])(cond)
+
         score_dict = dict(self.score_dict)
         score_dict.pop("score", None)
+        
         condmask = np.pad(photometric_mask, ((0,0),(2,0)), constant_values = True) # pad for (diffusion) time and phase
         h = TransformerWavelength(n_input=flux.shape[-1], **score_dict)(flux, wavelength_embd, cond, mask, condmask)
+        #h = TransformerWavelength(n_input=flux.shape[-1], **score_dict)(flux, wavelength_embd, cond, mask)
 
         return flux + h
 

@@ -1,6 +1,9 @@
 import pandas as pd
 import numpy as np
 
+# fix random seed for reproducibility
+np.random.seed(42)
+
 # Load the master CSV file
 data = pd.read_csv('../data/ZTFBTS/ZTFBTS_TransientTable_withpeak.csv')
 
@@ -41,11 +44,15 @@ from models.data_util import specdata
 
 spec_data = specdata(master_list = "../data/ZTFBTS/ZTFBTS_TransientTable_withpeak_train.csv",
                      max_length = 220, photometry_len = 60,
+                     spectra = "../data/ZTFBTS_spectra_minimal",
+                     post_fix = "_minimal_AVcorr_zcorr_logF",
                      verbose = True,
                      spectime = True, 
-                     combine_photometry=True)
+                     combine_photometry=True, 
+                     centering=True,
+                     )
 flux, wavelength, mask, type, phase, photoflux, phototime, photowavelength, photomask = spec_data.get_data(concat_photometry = True)
-np.savez("../data/train_data_align_with_simu.npz", 
+np.savez("../data/train_data_align_with_simu_minimal_centered.npz", 
          flux=flux, 
          wavelength=wavelength, 
          mask=mask, 
@@ -74,21 +81,24 @@ np.savez("../data/train_data_align_with_simu.npz",
         combined_time_mean = spec_data.combined_time_mean,
         combined_time_std = spec_data.combined_time_std,
         spectime_mean = spec_data.spectime_mean,
-        spectime_std = spec_data.spectime_std)
-with open('../data/train_class_dict_align_with_simu.json', 'w') as fp:
+        spectime_std = spec_data.spectime_std, 
+        ztfid = spec_data.ztfid)
+with open('../data/train_class_dict_align_with_simu_centered.json', 'w') as fp:
     json.dump(spec_data.class_encoding, fp)
 
 
 class_encoding = spec_data.class_encoding
 
 spec_data = specdata(master_list = "../data/ZTFBTS/ZTFBTS_TransientTable_withpeak_test.csv",
+                     spectra = "../data/ZTFBTS_spectra_minimal",
+                     post_fix = "_minimal_AVcorr_zcorr_logF",
                      verbose = True,
                      spectime = True, 
                      max_length = 220, photometry_len = 60,
                      class_encoding = class_encoding, 
                      z_score=False)
 flux, wavelength, mask, type, phase, photoflux, phototime, photowavelength,photomask = spec_data.get_data(concat_photometry = True)
-np.savez("../data/test_data_align_with_simu.npz", 
+np.savez("../data/test_data_align_with_simu_minimal_centered.npz", 
          flux=flux, 
          wavelength=wavelength, 
          mask=mask, 
