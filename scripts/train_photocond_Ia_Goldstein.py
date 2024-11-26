@@ -23,26 +23,21 @@ import json
 
 replicate = flax.jax_utils.replicate
 unreplicate = flax.jax_utils.unreplicate
+mid_filt = 3
+centering = True
 
-train_data = np.load("../data/train_data_align_with_simu_minimal_centered.npz")
-type = train_data['type']
-## Ia subtypes in ZTF data: [4,7,8,13,15,17]
-class_encoding = json.load(open('../data/train_class_dict_align_with_simu_centered.json'))
-class_decoding = {v: k for k, v in class_encoding.items()}
-# sort out Ia
-Ias = [ v for k, v in class_encoding.items() if "Ia" in k ]
-
-# 11 is Ia normal
-keep = np.array([x in Ias for x in train_data['type']])
+all_data = np.load(f"../data/goldstein_processed/preprocessed_midfilt_{mid_filt}_centering{centering}.npz")
 #breakpoint()
+training_idx = all_data['training_idx']
 
-flux, wavelength, mask = train_data['flux'][keep,:], train_data['wavelength'][keep,:], train_data['mask'][keep,:]
-type, phase = train_data['type'][keep], train_data['phase'][keep] 
-photoflux, phototime, photomask = train_data['photoflux'][keep,:], train_data['phototime'][keep,:], train_data['photomask'][keep,:]
-photowavelength = np.astype( train_data['photowavelength'][keep,:], int)
+flux, wavelength, mask = all_data['flux'][training_idx,:], all_data['wavelength'][training_idx,:], all_data['mask'][training_idx,:]
+phase = all_data['phase'][training_idx] 
+photoflux, phototime, photomask = all_data['photoflux'][training_idx,:], all_data['phototime'][training_idx,:], all_data['photomask'][training_idx,:]
+#phototime = np.concatenate( (phototime, phototime), 1) # temp fix
+photowavelength = np.astype( all_data['photowavelength'][training_idx,:], int)
 
-fluxes_std,  fluxes_mean = train_data['flux_std'], train_data['flux_mean']
-wavelengths_std, wavelengths_mean = train_data['wavelength_std'], train_data['wavelength_mean']
+fluxes_std,  fluxes_mean = all_data['flux_std'], all_data['flux_mean']
+wavelengths_std, wavelengths_mean = all_data['wavelength_std'], all_data['wavelength_mean']
 #breakpoint()
 
 # Define the model
@@ -57,7 +52,7 @@ score_dict = {
 vdm = photometrycondVariationalDiffusionModel2(d_feature=1, d_t_embedding=32, 
                                          noise_scale=1e-4, 
                                          noise_schedule="learned_linear",
-                                         concat_photo = True,
+                                         
                                          score_dict = score_dict,
                                          )
 #breakpoint()
@@ -71,16 +66,24 @@ out, params = vdm.init_with_output(init_rngs, flux[:2, :, None],
                                    photowavelength[:2, :],
                                    photomask[:2],
                                    )
+'''
+schedule = optax.warmup_cosine_decay_schedule(
+    init_value=0.0,
+    peak_value=3e-4,#3e-4,
+    warmup_steps=500,
+    decay_steps=3000,
+)
+''' # this is the original schedule
 
 schedule = optax.warmup_cosine_decay_schedule(
     init_value=1e-5,
-    peak_value=1e-3,
+    peak_value=1e-2,#3e-4,
     warmup_steps=500,
     decay_steps=3000,
 )
 
 tx = optax.chain( 
-    optax.clip(1.0), # some gradient clipping to avoid some nan's in loss
+    #optax.clip(1.0), # some gradient clipping to avoid some nan's in loss
     optax.adamw(learning_rate=schedule, weight_decay=1e-5) 
 )
 
@@ -162,7 +165,7 @@ with trange(n_steps) as steps:
         photowavelength_batch = np.array(photowavelength_batch)
         photomask_batch = np.array(photomask_batch)
 
-        
+        #breakpoint()
         pstate, metrics = train_step(pstate, fluxes_batch[..., None], wavelength_batch[..., None], phase_batch, 
                                      masks_batch, 
                                      photoflux_batch[..., None], phototime_batch[..., None],
@@ -173,6 +176,14 @@ with trange(n_steps) as steps:
         #breakpoint()
         steps.set_postfix(loss=unreplicate(metrics["loss"]))
 
+
+# save parameters
+byte_output = serialization.to_bytes(unreplicate(pstate).params)
+with open(f'../ckpt/pretrain_photometrycond_static_dict_param_cross_attn_Ia_goldstein_midfilt_{mid_filt}_centering{centering}', 'wb') as f:
+    f.write(byte_output)
+#
+
+'''
 ### test for generating
 from models.diffusion_utils import photometrycondgenerate
 
@@ -182,7 +193,7 @@ n_samples = 100
 wavelength_cond = (np.linspace(3000., 8000., flux.shape[1])[None, ...] - wavelengths_mean) / wavelengths_std 
 wavelength_cond = np.repeat(wavelength_cond, n_samples, axis=0)
 
-spectime_mean, spectime_std = train_data['spectime_mean'], train_data['spectime_std']
+spectime_mean, spectime_std = all_data['spectime_mean'], all_data['spectime_std']
 phase_cond = np.array([0.0 - spectime_mean] * n_samples) / spectime_std
 #breakpoint()
 
@@ -222,7 +233,7 @@ plt.title("Generated spectra")
 plt.savefig(f'ZTF_LC_cond_samples_phase0_cross_attn.png')  
 plt.close()
 
-
+'''
 
 
 

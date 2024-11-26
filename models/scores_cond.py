@@ -92,6 +92,7 @@ class photometrycondTransformerScoreNet2(nn.Module):
     d_spectime_embedding: int = 64
     d_photometrictime_embedding: int = 64
     nbands: int = 3
+    concat_photo: bool = True
     score_dict: dict = dataclasses.field(
         default_factory=lambda: {
             "d_model": 256,
@@ -153,18 +154,23 @@ class photometrycondTransformerScoreNet2(nn.Module):
         #breakpoint()
         
         # concat then MLP
-        photometric_cond = np.concatenate([photometric_time_embd, 
+        if self.concat_photo:
+            photometric_cond = np.concatenate([photometric_time_embd, 
                                            photometric_wavelength_embd, 
                                            photometric_flux_embd], axis=-1)
-        photometric_cond =  nn.Dense(self.score_dict["d_model"])(photometric_cond)
-        photometric_cond = nn.gelu(photometric_cond)
-        photometric_cond = nn.Dense(self.score_dict["d_model"])(photometric_cond)
+            photometric_cond =  nn.Dense(self.score_dict["d_model"])(photometric_cond)
+            photometric_cond = nn.gelu(photometric_cond)
+            photometric_cond = nn.Dense(self.score_dict["d_model"])(photometric_cond)
+        else:
+            photometric_cond = photometric_flux_embd + photometric_time_embd + photometric_wavelength_embd
         
-        
-        #direct concat
+            #direct concat
         cond = np.concatenate([t_embedding[:,None,:],
                                 spectime_embd[:,None,:], 
                                 photometric_cond], axis=1)
+        #cond = nn.Dense(self.score_dict["d_model"])(cond)
+        #cond = nn.gelu(cond)
+        #cond = nn.Dense(self.score_dict["d_model"])(cond)
         '''
         # transformer for photometry
         score_dict2 = dict(self.score_dict)
@@ -179,9 +185,7 @@ class photometrycondTransformerScoreNet2(nn.Module):
                                 photometric_cond[:,None,:]], axis=1)
            
         '''
-        cond = nn.Dense(self.score_dict["d_model"])(cond)
-        cond = nn.gelu(cond)
-        cond = nn.Dense(self.score_dict["d_model"])(cond)
+        
 
         score_dict = dict(self.score_dict)
         score_dict.pop("score", None)

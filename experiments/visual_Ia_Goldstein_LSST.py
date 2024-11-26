@@ -6,7 +6,7 @@ from models.data_util import normalizing_spectra
 import json
 
 centering = True
-results = np.load(f"../samples/posterior_test_photometrycond_first10_Ia_Goldstein_centering{centering}.npz")
+results = np.load(f"../samples/posterior_test_photometrycond_first10_Ia_Goldstein_centering{centering}_LSST.npz")
 posterior_samples, gt, wavelength, mask = results['posterior_samples'], results['gt'], results['wavelength'], results['mask']
 mask = mask.astype(bool)
 #breakpoint()
@@ -34,8 +34,8 @@ for i in range(10):
     running_thingy = np.array(running_thingy)
     #running_thingy -= running_thingy.mean(axis = 1)[:,None]
     posterior_mean = np.mean(running_thingy, axis=0)
-    posterior_lower = np.quantile(running_thingy, 0.05, axis=0)
-    posterior_upper = np.quantile(running_thingy, 0.95, axis=0)
+    posterior_lower = np.quantile(running_thingy, 0.025, axis=0)
+    posterior_upper = np.quantile(running_thingy, 0.975, axis=0)
     axs[i].plot(wavelength[0,:], posterior_mean, 
                 color='blue', label='posterior mean')
         #breakpoint()
@@ -48,7 +48,7 @@ for i in range(10):
     
 plt.tight_layout(rect=[0.04, 0.04, 1, 1])
 plt.show()
-plt.savefig(f'first_ten_Ia_Goldstein_centered.png')
+plt.savefig(f'first_ten_Ia_Goldstein_centered_LSST.png')
 plt.close()
 
 for i in range(10):
@@ -78,4 +78,4 @@ for i in range(10):
 #plt.ylim(-5, 3)
 plt.tight_layout(rect=[0.04, 0.04, 1, 1])
 plt.show()
-plt.savefig(f'first_ten_Ia_Goldstein_together_centered.png')
+plt.savefig(f'first_ten_Ia_Goldstein_together_centered_LSST.png')

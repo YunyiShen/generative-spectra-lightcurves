@@ -9,16 +9,18 @@ from scipy.signal import medfilt
 
 lambda_min = 3000
 lambda_max = 8000
-filtersize = 5
-centering = False
+filtersize = 3
+centering = True
 
 data_dir = "../data/goldstein"
 
-# Load ZTF filters
-tp_ZTF_g = np.genfromtxt('../data/Palomar_ZTF.g.dat')
-tp_ZTF_r = np.genfromtxt('../data/Palomar_ZTF.r.dat')
-bp_g = S.ArrayBandpass(tp_ZTF_g[:,0], tp_ZTF_g[:,1], name='ZTF g')
-bp_r = S.ArrayBandpass(tp_ZTF_r[:,0], tp_ZTF_r[:,1], name='ZTF r')
+# Load LSST ugrizy filters
+filters = ['u', 'g', 'r', 'i', 'z', 'y']
+filters_np = [np.genfromtxt(f'../data/filters/LSST/LSST_LSST.{ii}.dat') for ii in filters]
+bps = [S.ArrayBandpass(tp[:,0], tp[:,1], name=f'LSST {ii}') for ii, tp in zip(filters, filters_np)]
+
+
+
 wavelengths = []
 fluxes = []
 masks = []
@@ -47,37 +49,30 @@ for filename in os.listdir(data_dir):
             #plt.savefig('spectrum.png')
             #breakpoint()
             # now make ZTF light curves
-            LC_r = []
-            LC_g = []
-            LC_r_mask = []
-            LC_g_mask = []
+            LCs = {i:[] for i in filters}
+            LC_masks = {i:[] for i in filters}
+            #LC_r = []
+            #LC_g = []
+            #LC_r_mask = []
+            #LC_g_mask = []
             
             for i in range(tim.shape[0]):
                 #breakpoint()
                 if np.sum(Fnu[i]) == 0:
-                    LC_g.append(0)
-                    LC_r.append(0)
-                    LC_g_mask.append(0)
-                    LC_r_mask.append(0)
+                    for ii in filters:
+                        LCs[ii].append(0)
+                        LC_masks[ii].append(0)
                     continue
-                LC_g_mask.append(1)
-                LC_r_mask.append(1)
+
                 F_object = S.ArraySpectrum(lam, Fnu[i] + 1e-20 * (Fnu[i] == 0), fluxunits='fnu')
-                #breakpoint()
-                ZTF_g = S.Observation(F_object, bp_g, force='taper').effstim('abmag')
-                ZTF_r = S.Observation(F_object, bp_r, force='taper').effstim('abmag')
-                LC_r.append(ZTF_r)
-                LC_g.append(ZTF_g)
+                for ii, bp in zip(filters, bps):
+                    LC_masks[ii].append(1)
+                    LC = S.Observation(F_object, bp, force='taper').effstim('abmag')
+                    LCs[ii].append(LC)
             phase.append(0)
-            LC_concat = np.array(LC_r + LC_g)
-            #LC_r = np.array(LC_r)
-            #LC_g = np.array(LC_g)
-            
-            LC_concat_mask = np.array(LC_r_mask + LC_g_mask)
-            #LC_r_mask = np.array(LC_r_mask)
-            #LC_g_mask = np.array(LC_g_mask)
-            
-            LC_concat_band = np.concatenate((np.zeros_like(LC_r), np.ones_like(LC_g)))
+            LC_concat = np.array([LCs[ii] for ii in filters]).flatten()
+            LC_concat_mask = np.array([LC_masks[ii] for ii in filters]).flatten()
+            LC_concat_band = np.concatenate([np.zeros_like(LCs[ii]) + i for i, ii in enumerate(filters)])
 
             wavelengths.append(lam_in)
             if centering:
@@ -96,8 +91,9 @@ for filename in os.listdir(data_dir):
             # plot light curves
             '''
             plt.figure()
-            plt.scatter(tim, LC_r, label='r')
-            plt.scatter(tim, LC_g, label='g')
+            for ii in filters:
+                plt.scatter(tim, LCs[ii], label=ii)
+
             plt.ylim((-19.5,-16.5))
             plt.gca().invert_yaxis()
             plt.legend()
@@ -108,6 +104,7 @@ for filename in os.listdir(data_dir):
             plt.savefig('light_curves.png')
             breakpoint()
             '''
+            
 
 # some post-hoc centering/normalizing etc.
 fluxes = np.array(fluxes)
@@ -144,13 +141,13 @@ training_idx = shuffle[:int(0.8 * len(fluxes))]
 testing_idx = shuffle[int(0.8 * len(fluxes)):]
 
 # save to file
-np.savez(f'../data/goldstein_processed/preprocessed_midfilt_{filtersize}_centering{centering}.npz', 
+np.savez(f'../data/goldstein_processed/preprocessed_midfilt_{filtersize}_centering{centering}_LSST.npz', 
         wavelength=wavelengths, 
         flux=fluxes, 
         mask=masks,
         phase=phase, 
 
-        phototime=np.concatenate( (times, times), 1),#times, 
+        phototime=np.concatenate( [times for _ in filters], 1),#times, 
         photoflux=photometric, 
         photomask=photometric_mask, 
         photowavelength=photometric_band, 
