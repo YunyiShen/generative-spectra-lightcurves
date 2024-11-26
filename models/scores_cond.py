@@ -91,6 +91,7 @@ class photometrycondTransformerScoreNet2(nn.Module):
     d_wave_embedding: int = 64
     d_spectime_embedding: int = 64
     d_photometrictime_embedding: int = 64
+    nbands: int = 3
     score_dict: dict = dataclasses.field(
         default_factory=lambda: {
             "d_model": 256,
@@ -143,18 +144,18 @@ class photometrycondTransformerScoreNet2(nn.Module):
         
         #photometric_wavelength_embd = get_sinusoidal_embedding(photometric_wavelength, self.d_wave_embedding)
         #photometric_wavelength_embd = wave_mlp(photometric_wavelength_embd)
-        photometric_wavelength_embd = nn.Embed(3,self.score_dict["d_model"])(photometric_wavelength)
+        photometric_wavelength_embd = nn.Embed(self.nbands,self.score_dict["d_model"])(photometric_wavelength)
         #breakpoint()
         
         # adding together
         #photometric_cond = photometric_wavelength_embd + photometric_flux_embd + photometric_time_embd
         
-        
+        #breakpoint()
         
         # concat then MLP
-        photometric_cond = np.concatenate([photometric_time, 
+        photometric_cond = np.concatenate([photometric_time_embd, 
                                            photometric_wavelength_embd, 
-                                           photometric_flux], axis=-1)
+                                           photometric_flux_embd], axis=-1)
         photometric_cond =  nn.Dense(self.score_dict["d_model"])(photometric_cond)
         photometric_cond = nn.gelu(photometric_cond)
         photometric_cond = nn.Dense(self.score_dict["d_model"])(photometric_cond)
