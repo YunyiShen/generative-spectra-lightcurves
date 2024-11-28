@@ -19,7 +19,7 @@ testing_idx = all_data['testing_idx']
 flux, wavelength, mask = all_data['flux'][testing_idx,:], all_data['wavelength'][testing_idx,:], all_data['mask'][testing_idx,:]
 phase = all_data['phase'][testing_idx] 
 photoflux, phototime, photomask = all_data['photoflux'][testing_idx,:], all_data['phototime'][testing_idx,:], all_data['photomask'][testing_idx,:]
-phototime = np.concatenate( (phototime, phototime, phototime), 1) # temp fix
+#phototime = np.concatenate( (phototime, phototime, phototime), 1) # temp fix
 photowavelength = np.astype( all_data['photowavelength'][testing_idx,:], int)
 
 fluxes_std,  fluxes_mean = all_data['flux_std'], all_data['flux_mean']

@@ -11,7 +11,7 @@ posterior_samples, gt, wavelength, mask = results['posterior_samples'], results[
 mask = mask.astype(bool)
 #breakpoint()
 
-fig, axs = plt.subplots(2, 5, figsize=(40, 15))
+fig, axs = plt.subplots(2, 5, figsize=(20, 5))
 axs = axs.flatten()
 i = 0
 #breakpoint()
