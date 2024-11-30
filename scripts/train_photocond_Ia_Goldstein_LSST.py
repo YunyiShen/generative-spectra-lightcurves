@@ -26,7 +26,7 @@ unreplicate = flax.jax_utils.unreplicate
 mid_filt = 3
 centering = True
 
-all_data = np.load(f"../data/goldstein_processed/preprocessed_midfilt_{mid_filt}_centering{centering}_LSST_phasefrom0.npz")
+all_data = np.load(f"../data/goldstein_processed/preprocessed_midfilt_{mid_filt}_centering{centering}_LSST_phase.npz")
 #breakpoint()
 training_idx = all_data['training_idx']
 
@@ -180,7 +180,7 @@ with trange(n_steps) as steps:
 
 # save parameters
 byte_output = serialization.to_bytes(unreplicate(pstate).params)
-with open(f'../ckpt/pretrain_photometrycond_static_dict_param_cross_attn_Ia_goldstein_midfilt_{mid_filt}_centering{centering}_LSST_phasefrom0', 'wb') as f:
+with open(f'../ckpt/pretrain_photometrycond_static_dict_param_cross_attn_Ia_goldstein_midfilt_{mid_filt}_centering{centering}_LSST_phase', 'wb') as f:
     f.write(byte_output)
 #
 
