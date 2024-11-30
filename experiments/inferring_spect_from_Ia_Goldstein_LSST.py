@@ -11,7 +11,7 @@ from models.diffusion_utils import photometrycondgenerate
 midfilt = 3
 centering = True
 
-all_data = np.load(f"../data/goldstein_processed/preprocessed_midfilt_{midfilt}_centering{centering}_LSST.npz")
+all_data = np.load(f"../data/goldstein_processed/preprocessed_midfilt_{midfilt}_centering{centering}_LSST_phasefrom0.npz")
 #breakpoint()
 training_idx = all_data['training_idx']
 testing_idx = all_data['testing_idx']
@@ -24,8 +24,8 @@ photowavelength = np.astype( all_data['photowavelength'][testing_idx,:], int)
 
 fluxes_std,  fluxes_mean = all_data['flux_std'], all_data['flux_mean']
 wavelengths_std, wavelengths_mean = all_data['wavelength_std'], all_data['wavelength_mean']
-#breakpoint()
 wavelength_cond = np.copy(wavelength[:2])#(np.linspace(3000., 8000., flux.shape[1])[None, ...] - wavelengths_mean) / wavelengths_std
+phase_cond = np.copy(phase[:2])
 
 # Define the model
 concat = True
@@ -46,7 +46,7 @@ vdm = photometrycondVariationalDiffusionModel2(d_feature=1, d_t_embedding=32,
 init_rngs = {'params': jax.random.key(0), 'sample': jax.random.key(1)}
 out, params = vdm.init_with_output(init_rngs, flux[:2, :, None], 
                                    wavelength_cond[:2, :, None], 
-                                   phase[:2], 
+                                   phase_cond[:2], 
                                    mask[:2],
                                    photoflux[:2, :, None],
                                    phototime[:2, :, None],
@@ -55,7 +55,7 @@ out, params = vdm.init_with_output(init_rngs, flux[:2, :, None],
                                    )
 
 #breakpoint()
-with open(f'../ckpt/pretrain_photometrycond_static_dict_param_cross_attn_Ia_goldstein_midfilt_{midfilt}_centering{centering}_LSST', 'rb') as f:
+with open(f'../ckpt/pretrain_photometrycond_static_dict_param_cross_attn_Ia_goldstein_midfilt_{midfilt}_centering{centering}_LSST_phasefrom0', 'rb') as f:
     serialized_model = f.read()
 params = flax.serialization.from_bytes(params, serialized_model)
 
@@ -65,8 +65,8 @@ n_test_data = min(photoflux.shape[0], first)
 
 n_samples = 50
 #posterior_samples = []
-phase_cond = np.array([0.0 ] * n_samples * n_test_data)
-
+phase_cond = np.repeat(phase[:n_test_data], n_samples, axis = 0) #np.array([0.0 ] * n_samples * n_test_data)
+#breakpoint()
 #from tqdm import tqdm
 #for i in tqdm(range(n_samples)):
 
@@ -103,7 +103,7 @@ sample = sample.mean()[:,:,0]
 
 
 posterior_samples = sample#.reshape(n_test_data, sample.shape[1],n_samples)
-np.savez(f"../samples/posterior_test_photometrycond_first{n_test_data}_Ia_Goldstein_centering{centering}_LSST.npz", 
+np.savez(f"../samples/posterior_test_photometrycond_first{n_test_data}_Ia_Goldstein_centering{centering}_LSST_phasefrom0.npz", 
          posterior_samples=posterior_samples, 
          gt = gts[:n_test_data],
          wavelength = wavelengths[:n_test_data] * wavelengths_std + wavelengths_mean,

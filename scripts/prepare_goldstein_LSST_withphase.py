@@ -19,7 +19,7 @@ np.random.seed(42)
 filters = ['u', 'g', 'r', 'i', 'z', 'y']
 filters_np = [np.genfromtxt(f'../data/filters/LSST/LSST_LSST.{ii}.dat') for ii in filters]
 bps = [S.ArrayBandpass(tp[:,0], tp[:,1], name=f'LSST {ii}') for ii, tp in zip(filters, filters_np)]
-phase_range = [-10, 0, 10, 20, 30]
+phase_range = [0,5,10,15,20] #[-10, 0, 10, 20, 30]
 
 
 wavelengths = []
@@ -33,6 +33,8 @@ photometric_mask = []
 photometric_band = []
 
 training_or_not = []
+
+file_name = []
 
 for filename in os.listdir(data_dir):
     file_path = os.path.join(data_dir, filename)
@@ -78,18 +80,26 @@ for filename in os.listdir(data_dir):
             # a random number to decide whether it is in training
             in_training = np.random.rand() < training_prop
             peak = np.argmax(total_brightness)
+            min_Fnu = np.min(Fnu[Fnu != 0])
+            min_Fnu = max(min_Fnu, 1e-18)
             for phase_shift in phase_range:
                 if peak + phase_shift > len(tim) or peak + phase_shift < 0:
                     continue # skip this phase if out of bounds
-                
-                
                 raw_flux =  Fnu[peak + phase_shift, in_range_lam][0,:]
-                raw_flux[raw_flux == 0] = 1e-20
+                if max(raw_flux) == 0:
+                    continue # too dark, skip
+                mask = (raw_flux != 0) * 1
+                raw_flux[raw_flux == 0] = min_Fnu
                 spectrum = np.log10( raw_flux)
                 #breakpoint()
                 lam_in = lam[in_range_lam]
                 spectrum = medfilt(spectrum, filtersize)
-                
+                '''
+                plt.plot(lam_in[mask == 1], spectrum[mask == 1]-np.mean(spectrum))
+                plt.show()
+                plt.savefig('spectrum.png')
+                breakpoint()
+                '''
                 phase.append(phase_shift)
             
                 wavelengths.append(lam_in)
@@ -97,12 +107,15 @@ for filename in os.listdir(data_dir):
                     fluxes.append(spectrum - np.mean(spectrum))
                 else:
                     fluxes.append(spectrum)
-                masks.append(np.ones_like(spectrum))
+                #masks.append(np.ones_like(spectrum))
+                #breakpoint()
+                masks.append(mask)
                 times.append(tim)
                 photometric.append(LC_concat)
                 photometric_mask.append(LC_concat_mask)
                 photometric_band.append(LC_concat_band)
                 training_or_not.append(in_training)
+                file_name.append(filename)
             #breakpoint()
 
             #print(LC_r)
@@ -162,9 +175,10 @@ photometric = (photometric - photometric_mean) / photometric_std
 training_or_not = np.array(training_or_not)
 training_idx = np.where(training_or_not)[0]
 testing_idx = np.where(np.logical_not( training_or_not))[0]
+file_name = np.array(file_name)
 
 # save to file
-np.savez(f'../data/goldstein_processed/preprocessed_midfilt_{filtersize}_centering{centering}_LSST_phase.npz', 
+np.savez(f'../data/goldstein_processed/preprocessed_midfilt_{filtersize}_centering{centering}_LSST_phasefrom0.npz', 
         wavelength=wavelengths, 
         flux=fluxes, 
         mask=masks,
@@ -187,7 +201,8 @@ np.savez(f'../data/goldstein_processed/preprocessed_midfilt_{filtersize}_centeri
         photoflux_mean=photometric_mean,
         photoflux_std=photometric_std,
         training_idx=training_idx,
-        testing_idx=testing_idx
+        testing_idx=testing_idx,
+        identity=file_name
         )
 
 

@@ -26,14 +26,14 @@ unreplicate = flax.jax_utils.unreplicate
 mid_filt = 3
 centering = True
 
-all_data = np.load(f"../data/goldstein_processed/preprocessed_midfilt_{mid_filt}_centering{centering}_LSST.npz")
+all_data = np.load(f"../data/goldstein_processed/preprocessed_midfilt_{mid_filt}_centering{centering}_LSST_phasefrom0.npz")
 #breakpoint()
 training_idx = all_data['training_idx']
 
 flux, wavelength, mask = all_data['flux'][training_idx,:], all_data['wavelength'][training_idx,:], all_data['mask'][training_idx,:]
 phase = all_data['phase'][training_idx] 
 photoflux, phototime, photomask = all_data['photoflux'][training_idx,:], all_data['phototime'][training_idx,:], all_data['photomask'][training_idx,:]
-phototime = np.concatenate( (phototime, phototime, phototime), 1) # temp fix
+#phototime = np.concatenate( (phototime, phototime, phototime), 1) # temp fix
 photowavelength = np.astype( all_data['photowavelength'][training_idx,:], int)
 
 fluxes_std,  fluxes_mean = all_data['flux_std'], all_data['flux_mean']
@@ -78,7 +78,7 @@ schedule = optax.warmup_cosine_decay_schedule(
 
 schedule = optax.warmup_cosine_decay_schedule(
     init_value=1e-5,
-    peak_value=1e-2,#3e-4,
+    peak_value=3e-3,#1e-2,
     warmup_steps=500,
     decay_steps=3000,
 )
@@ -180,7 +180,7 @@ with trange(n_steps) as steps:
 
 # save parameters
 byte_output = serialization.to_bytes(unreplicate(pstate).params)
-with open(f'../ckpt/pretrain_photometrycond_static_dict_param_cross_attn_Ia_goldstein_midfilt_{mid_filt}_centering{centering}_LSST', 'wb') as f:
+with open(f'../ckpt/pretrain_photometrycond_static_dict_param_cross_attn_Ia_goldstein_midfilt_{mid_filt}_centering{centering}_LSST_phasefrom0', 'wb') as f:
     f.write(byte_output)
 #
 
