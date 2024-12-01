@@ -26,7 +26,7 @@ unreplicate = flax.jax_utils.unreplicate
 mid_filt = 3
 centering = True
 
-all_data = np.load(f"../data/goldstein_processed/preprocessed_midfilt_{mid_filt}_centering{centering}.npz")
+all_data = np.load(f"../data/goldstein_processed/preprocessed_midfilt_{mid_filt}_centering{centering}_ZTF_phase.npz")
 #breakpoint()
 training_idx = all_data['training_idx']
 
@@ -77,7 +77,7 @@ schedule = optax.warmup_cosine_decay_schedule(
 
 schedule = optax.warmup_cosine_decay_schedule(
     init_value=1e-5,
-    peak_value=1e-2,#3e-4,
+    peak_value=3e-3,#1e-2,
     warmup_steps=500,
     decay_steps=3000,
 )
@@ -179,7 +179,7 @@ with trange(n_steps) as steps:
 
 # save parameters
 byte_output = serialization.to_bytes(unreplicate(pstate).params)
-with open(f'../ckpt/pretrain_photometrycond_static_dict_param_cross_attn_Ia_goldstein_midfilt_{mid_filt}_centering{centering}', 'wb') as f:
+with open(f'../ckpt/pretrain_photometrycond_static_dict_param_cross_attn_Ia_goldstein_midfilt_{mid_filt}_centering{centering}_phase', 'wb') as f:
     f.write(byte_output)
 #
 

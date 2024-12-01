@@ -29,7 +29,7 @@ ztfid = train_data['ztfid'][keep]
 
 fluxes_std,  fluxes_mean = train_data['flux_std'], train_data['flux_mean']
 wavelengths_std, wavelengths_mean = train_data['wavelength_std'], train_data['wavelength_mean']
-
+phase_cond = np.copy(phase[:2])
 # Define the model
 concat = True
 score_dict = {
@@ -48,7 +48,7 @@ vdm = photometrycondVariationalDiffusionModel2(d_feature=1, d_t_embedding=32,
 init_rngs = {'params': jax.random.key(0), 'sample': jax.random.key(1)}
 out, params = vdm.init_with_output(init_rngs, flux[:2, :, None], 
                                    wavelength[:2, :, None], 
-                                   phase[:2], 
+                                   phase_cond[:2], 
                                    mask[:2],
                                    photoflux[:2, :, None],
                                    phototime[:2, :, None],
@@ -78,7 +78,7 @@ wavelength_cond = np.repeat(wavelength_cond, n_test_data, axis=0)
 
 #posterior_samples = []
 spectime_mean, spectime_std = train_data['spectime_mean'], train_data['spectime_std']
-phase_cond = np.array([0.0 - spectime_mean] * n_samples * n_test_data) / spectime_std
+phase_cond = np.repeat(phase[:n_test_data], n_samples, axis = 0) #np.array([0.0 ] * n_samples * n_test_data)
 
 #from tqdm import tqdm
 #for i in tqdm(range(n_samples)):
@@ -99,7 +99,7 @@ wavelength_cond = (np.linspace(3000., 8000., flux.shape[1])[None, ...] - wavelen
 wavelength_cond = np.repeat(wavelength_cond, n_test_data * n_samples, axis=0)
 
 spectime_mean, spectime_std = train_data['spectime_mean'], train_data['spectime_std']
-phase_cond = np.array([0.0 - spectime_mean] * n_samples * n_test_data) / spectime_std
+phase_cond = np.repeat(phase[:n_test_data], n_samples, axis = 0) #np.array([0.0 ] * n_samples * n_test_data)
     
 gts = test_data['flux'][keep,:]
 wavelengths = test_data['wavelength'][keep,:]

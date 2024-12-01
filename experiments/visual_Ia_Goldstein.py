@@ -6,12 +6,12 @@ from models.data_util import normalizing_spectra
 import json
 
 centering = True
-results = np.load(f"../samples/posterior_test_photometrycond_first10_Ia_Goldstein_centering{centering}.npz")
+results = np.load(f"../samples/posterior_test_photometrycond_first10_Ia_Goldstein_centering{centering}_phase.npz")
 posterior_samples, gt, wavelength, mask = results['posterior_samples'], results['gt'], results['wavelength'], results['mask']
 mask = mask.astype(bool)
 #breakpoint()
 
-fig, axs = plt.subplots(2, 5, figsize=(40, 15))
+fig, axs = plt.subplots(2, 5, figsize=(20, 5))
 axs = axs.flatten()
 i = 0
 #breakpoint()
@@ -44,11 +44,12 @@ for i in range(10):
                                  posterior_upper, 
                         color='blue', alpha=0.3)
     axs[i].legend()
+    
     #axs[i].set_ylim(-3, 3)
     
 plt.tight_layout(rect=[0.04, 0.04, 1, 1])
 plt.show()
-plt.savefig(f'first_ten_Ia_Goldstein_centered.png')
+plt.savefig(f'first_ten_Ia_Goldstein_centered_phase.png')
 plt.close()
 
 for i in range(10):
@@ -78,4 +79,4 @@ for i in range(10):
 #plt.ylim(-5, 3)
 plt.tight_layout(rect=[0.04, 0.04, 1, 1])
 plt.show()
-plt.savefig(f'first_ten_Ia_Goldstein_together_centered.png')
+plt.savefig(f'first_ten_Ia_Goldstein_together_centered_phase.png')
