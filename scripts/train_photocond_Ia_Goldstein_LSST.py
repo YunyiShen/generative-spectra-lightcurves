@@ -20,13 +20,15 @@ from models.data_util import specdata
 from models.diffusion_cond import photometrycondVariationalDiffusionModel2
 from models.transformer import Transformer
 import json
+import sys
 
 replicate = flax.jax_utils.replicate
 unreplicate = flax.jax_utils.unreplicate
-mid_filt = 3
-centering = True
+mid_filt = int(sys.argv[1]) #3
+centering = sys.argv[2].lower() == "true" #False
+realistic = "realistic" if sys.argv[3].lower() == "true" else "" #"" # "" #if you want high cadency
 
-all_data = np.load(f"../data/goldstein_processed/preprocessed_midfilt_{mid_filt}_centering{centering}_LSST_phase.npz")
+all_data = np.load(f"../data/goldstein_processed/preprocessed_midfilt_{mid_filt}_centering{centering}_{realistic}LSST_phase.npz")
 #breakpoint()
 training_idx = all_data['training_idx']
 
@@ -180,7 +182,7 @@ with trange(n_steps) as steps:
 
 # save parameters
 byte_output = serialization.to_bytes(unreplicate(pstate).params)
-with open(f'../ckpt/pretrain_photometrycond_static_dict_param_cross_attn_Ia_goldstein_midfilt_{mid_filt}_centering{centering}_LSST_phase', 'wb') as f:
+with open(f'../ckpt/pretrain_photometrycond_static_dict_param_cross_attn_Ia_goldstein_midfilt_{mid_filt}_centering{centering}_{realistic}LSST_phase', 'wb') as f:
     f.write(byte_output)
 #
 

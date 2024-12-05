@@ -8,10 +8,12 @@ import flax
 from models.data_util import normalizing_spectra
 from models.diffusion_cond import photometrycondVariationalDiffusionModel2
 from models.diffusion_utils import photometrycondgenerate
-midfilt = 3
-centering = True
 
-all_data = np.load(f"../data/goldstein_processed/preprocessed_midfilt_{midfilt}_centering{centering}_LSST_phase.npz")
+mid_filt = int(sys.argv[1]) #3
+centering = sys.argv[2].lower() == "true" #False
+realistic = "realistic" if sys.argv[3].lower() == "true" else "" #"" # "" #if you want high cadency
+
+all_data = np.load(f"../data/goldstein_processed/preprocessed_midfilt_{midfilt}_centering{centering}_{realistic}LSST_phase.npz")
 #breakpoint()
 training_idx = all_data['training_idx']
 testing_idx = all_data['testing_idx']
@@ -55,7 +57,7 @@ out, params = vdm.init_with_output(init_rngs, flux[:2, :, None],
                                    )
 
 #breakpoint()
-with open(f'../ckpt/pretrain_photometrycond_static_dict_param_cross_attn_Ia_goldstein_midfilt_{midfilt}_centering{centering}_LSST_phase', 'rb') as f:
+with open(f'../ckpt/pretrain_photometrycond_static_dict_param_cross_attn_Ia_goldstein_midfilt_{midfilt}_centering{centering}_{realistic}LSST_phase', 'rb') as f:
     serialized_model = f.read()
 params = flax.serialization.from_bytes(params, serialized_model)
 
@@ -103,7 +105,7 @@ sample = sample.mean()[:,:,0]
 
 
 posterior_samples = sample#.reshape(n_test_data, sample.shape[1],n_samples)
-np.savez(f"../samples/posterior_test_photometrycond_first{n_test_data}_Ia_Goldstein_centering{centering}_LSST_phase.npz", 
+np.savez(f"../samples/posterior_test_photometrycond_first{n_test_data}_Ia_Goldstein_centering{centering}_{realistic}LSST_phase.npz", 
          posterior_samples=posterior_samples, 
          gt = gts[:n_test_data],
          wavelength = wavelengths[:n_test_data] * wavelengths_std + wavelengths_mean,
