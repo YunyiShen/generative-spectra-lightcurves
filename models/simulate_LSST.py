@@ -13,6 +13,7 @@ import sqlite3
 import pysynphot as S
 from cosmolopy import magnitudes, cc
 import matplotlib.pyplot as plt
+pd.options.mode.chained_assignment = None 
 
 
 def simulate_lsstLC(sed_surface, spec_time, # time in days
@@ -22,7 +23,7 @@ def simulate_lsstLC(sed_surface, spec_time, # time in days
                     #filters = ["u", "g", "r", "i", "z", "y"], 
                     filters_loc = "../data/filters/LSST",
                     phase_offset_lim = [10,20], # at which day since first observation to peak the transient 
-                    len_per_filter = 50,
+                    len_per_filter = 60,
                     minimum_LC_size = 30,
                     max_retry_location = 500):
     all_filters = filters_encoding.keys()
@@ -169,12 +170,15 @@ def simulate_lsstLC(sed_surface, spec_time, # time in days
         # Convert counts to numpy arrays
             sky_counts = np.array(sky_counts)
             source_counts = np.array(source_counts)
-
+            
             # Compute Signal-to-Noise Ratio (SNR)
             snr = source_counts / np.sqrt(source_counts / gain + (sky_counts / gain + readout_noise**2) * n_eff)
+            no_signal = np.where(snr == 0)
+            snr[no_signal] = 1
             # Compute magnitude errors and add noise
             mag_err = 1.09 / snr
             noisy_mags = source_mag + np.random.normal(0, mag_err)
+            noisy_mags[no_signal] = np.nan
             photoband = []
             photoflux = []
             photomask = []
@@ -184,6 +188,10 @@ def simulate_lsstLC(sed_surface, spec_time, # time in days
             for flt in all_filters:
                 flt_idx = np.where(filts == flt)[0]
                 len_this_band = len(flt_idx)
+                if len_this_band > len_per_filter:
+                    # randomly select len_per_filter observations
+                    flt_idx = np.random.choice(flt_idx, len_per_filter, replace=False)
+                    len_this_band = len_per_filter
                 photoband_tmp = np.zeros(len_per_filter)
                 photoflux_tmp = np.zeros(len_per_filter)
                 phototime_tmp = np.zeros(len_per_filter)
