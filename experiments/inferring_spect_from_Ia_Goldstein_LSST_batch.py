@@ -8,10 +8,12 @@ import flax
 from models.data_util import normalizing_spectra
 from models.diffusion_cond import photometrycondVariationalDiffusionModel2
 from models.diffusion_utils import photometrycondgenerate
-midfilt = 3
-centering = True
 
-all_data = np.load(f"../data/goldstein_processed/preprocessed_midfilt_{midfilt}_centering{centering}_LSST_phase.npz")
+midfilt = int(sys.argv[1]) #3
+centering = sys.argv[2].lower() == "true" #False
+realistic = "realistic" if sys.argv[3].lower() == "true" else "" #"" # "" #if you want high cadency
+
+all_data = np.load(f"../data/goldstein_processed/preprocessed_midfilt_{midfilt}_centering{centering}_{realistic}LSST_phase.npz")
 #breakpoint()
 training_idx = all_data['training_idx']
 testing_idx = all_data['testing_idx']
@@ -33,6 +35,7 @@ identity = all_data['identity'][testing_idx]
 
 wavelength_cond = np.copy(wavelength[:2])#(np.linspace(3000., 8000., flux.shape[1])[None, ...] - wavelengths_mean) / wavelengths_std
 phase_cond = np.copy(phase[:2])
+phototime_cond = np.copy(phototime[:2])
 
 # Define the model
 concat = True
@@ -56,13 +59,13 @@ out, params = vdm.init_with_output(init_rngs, flux[:2, :, None],
                                    phase_cond[:2], 
                                    mask[:2],
                                    photoflux[:2, :, None],
-                                   phototime[:2, :, None],
+                                   phototime_cond[:2, :, None],
                                    photowavelength[:2, :],#, None],
                                    photomask[:2],
                                    )
 
 #breakpoint()
-with open(f'../ckpt/pretrain_photometrycond_static_dict_param_cross_attn_Ia_goldstein_midfilt_{midfilt}_centering{centering}_LSST_phase', 'rb') as f:
+with open(f'../ckpt/pretrain_photometrycond_static_dict_param_cross_attn_Ia_goldstein_midfilt_{midfilt}_centering{centering}_{realistic}LSST_phase', 'rb') as f:
     serialized_model = f.read()
 params = flax.serialization.from_bytes(params, serialized_model)
 
@@ -99,6 +102,7 @@ for i in tqdm(range(n_batch)):
     mask = mask
 
     #breakpoint()
+    print(phototime_cond[:10])
     sample = photometrycondgenerate(vdm, params, jax.random.PRNGKey(42), 
                             (batch_size * n_samples, len(wavelength_cond[0])), 
                             wavelength_cond[..., None], 
@@ -117,7 +121,7 @@ for i in tqdm(range(n_batch)):
 
 
     posterior_samples = sample#.reshape(batch_size, sample.shape[1],n_samples)
-    np.savez(f"../samples/posterior_test_photometrycond_batch{i}_size{batch_size}_Ia_Goldstein_centering{centering}_LSST_phase.npz", 
+    np.savez(f"../samples/posterior_test_photometrycond_batch{i}_size{batch_size}_Ia_Goldstein_centering{centering}_{realistic}LSST_phase.npz", 
          posterior_samples=posterior_samples, 
          gt = gts[i*batch_size:(i+1) * batch_size],
          wavelength = wavelengths[i*batch_size:(i+1) * batch_size] * wavelengths_std + wavelengths_mean,

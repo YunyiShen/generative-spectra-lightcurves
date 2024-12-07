@@ -9,6 +9,8 @@ mid_filt = int(sys.argv[1]) #3
 centering = sys.argv[2].lower() == "true" #False
 realistic = "realistic" if sys.argv[3].lower() == "true" else "" #"" # "" #if you want high cadency
 
+print(f"centering: {centering}, realistic: {realistic}")
+
 results = np.load(f"../samples/posterior_test_photometrycond_first10_Ia_Goldstein_centering{centering}_{realistic}LSST_phase.npz")
 posterior_samples, gt, wavelength, mask = results['posterior_samples'], results['gt'], results['wavelength'], results['mask']
 mask = mask.astype(bool)
@@ -35,6 +37,8 @@ for i in range(10):
     for j in range(50):
         running_thingy += [posterior_samples[i * 50 + j , :]]#[posterior_samples[i + j * 10, :]]
     running_thingy = np.array(running_thingy)
+    if centering:
+        running_thingy -= running_thingy.mean(axis = 1)[:,None]
     #running_thingy -= running_thingy.mean(axis = 1)[:,None]
     posterior_mean = np.mean(running_thingy, axis=0)
     posterior_lower = np.quantile(running_thingy, 0.025, axis=0)
@@ -53,7 +57,7 @@ for i in range(10):
     
 plt.tight_layout(rect=[0.04, 0.04, 1, 1])
 plt.show()
-plt.savefig(f'first_ten_Ia_Goldstein_centered_{realistic}LSST_phase.png')
+plt.savefig(f'first_ten_Ia_Goldstein_centered{centering}_{realistic}LSST_phase.png')
 plt.close()
 
 for i in range(10):
@@ -83,4 +87,4 @@ for i in range(10):
 #plt.ylim(-5, 3)
 plt.tight_layout(rect=[0.04, 0.04, 1, 1])
 plt.show()
-plt.savefig(f'first_ten_Ia_Goldstein_together_centered_{realistic}LSST_phase.png')
+plt.savefig(f'first_ten_Ia_Goldstein_together_centered{centering}_{realistic}LSST_phase.png')
