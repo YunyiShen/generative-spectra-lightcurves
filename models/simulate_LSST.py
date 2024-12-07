@@ -23,6 +23,7 @@ def simulate_lsstLC(sed_surface, spec_time, # time in days
                     #filters = ["u", "g", "r", "i", "z", "y"], 
                     filters_loc = "../data/filters/LSST",
                     phase_offset_lim = [10,20], # at which day since first observation to peak the transient 
+                    phase_lim_for_lc_too_long = [-20, 80],
                     len_per_filter = 60,
                     minimum_LC_size = 30,
                     max_retry_location = 500):
@@ -91,7 +92,7 @@ def simulate_lsstLC(sed_surface, spec_time, # time in days
         # decide when the transient peaks
         peak_offset = np.random.uniform(phase_offset_lim[0], phase_offset_lim[1])
         new_s = (df_obs['observationStartMJD'].values - np.min(df_obs['observationStartMJD'].values)-peak_offset)*86400
-        
+        #breakpoint()
         # observations
         df_obs = df_obs[(new_s >= np.min(spec_time)) & (new_s <= np.max(spec_time))]
         new_s = new_s[(new_s >= np.min(spec_time)) & (new_s <= np.max(spec_time))]
@@ -185,13 +186,22 @@ def simulate_lsstLC(sed_surface, spec_time, # time in days
             phototime = []
             encod = 0
             #plt.figure()
+            
             for flt in all_filters:
+                
                 flt_idx = np.where(filts == flt)[0]
                 len_this_band = len(flt_idx)
+                #breakpoint()
                 if len_this_band > len_per_filter:
                     # randomly select len_per_filter observations
-                    flt_idx = np.random.choice(flt_idx, len_per_filter, replace=False)
-                    len_this_band = len_per_filter
+                    this_spec_time = spec_time[flt_idx]
+                    taking = np.where(np.logical_and(this_spec_time >= phase_lim_for_lc_too_long[0] * 86400, this_spec_time <= phase_lim_for_lc_too_long[1]* 86400))
+                    flt_idx = flt_idx[taking]
+                    if len(taking[0]) > len_per_filter:
+                        flt_idx = np.random.choice(flt_idx, len_per_filter, replace=False)
+                        flt_idx = np.sort(flt_idx)
+                        #len_this_band = len_per_filter
+                    len_this_band = len(flt_idx)
                 photoband_tmp = np.zeros(len_per_filter)
                 photoflux_tmp = np.zeros(len_per_filter)
                 phototime_tmp = np.zeros(len_per_filter)
