@@ -91,7 +91,7 @@ wavelengths = wavelength
 mask = mask
 
 print("Generating samples started at ", datetime.datetime.now())
-#breakpoint()
+
 sample = photometrycondgenerate(vdm, params, jax.random.PRNGKey(42), 
                             (n_test_data * n_samples, len(wavelength_cond[0])), 
                             wavelength_cond[..., None], 

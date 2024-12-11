@@ -12,6 +12,7 @@ from models.diffusion_utils import photometrycondgenerate
 midfilt = int(sys.argv[1]) #3
 centering = sys.argv[2].lower() == "true" #False
 realistic = "realistic" if sys.argv[3].lower() == "true" else "" #"" # "" #if you want high cadency
+print(midfilt, centering, realistic)
 
 all_data = np.load(f"../data/goldstein_processed/preprocessed_midfilt_{midfilt}_centering{centering}_{realistic}LSST_phase.npz")
 #breakpoint()
@@ -102,7 +103,7 @@ for i in tqdm(range(n_batch)):
     mask = mask
 
     #breakpoint()
-    print(phototime_cond[:10])
+    #print(phototime_cond[:10])
     sample = photometrycondgenerate(vdm, params, jax.random.PRNGKey(42), 
                             (batch_size * n_samples, len(wavelength_cond[0])), 
                             wavelength_cond[..., None], 
@@ -122,14 +123,15 @@ for i in tqdm(range(n_batch)):
 
     posterior_samples = sample#.reshape(batch_size, sample.shape[1],n_samples)
     np.savez(f"../samples/posterior_test_photometrycond_batch{i}_size{batch_size}_Ia_Goldstein_centering{centering}_{realistic}LSST_phase.npz", 
-         posterior_samples=posterior_samples, 
-         gt = gts[i*batch_size:(i+1) * batch_size],
+         posterior_samples=posterior_samples * fluxes_std + fluxes_mean, 
+         gt = gts[i*batch_size:(i+1) * batch_size]* fluxes_std + fluxes_mean,
          wavelength = wavelengths[i*batch_size:(i+1) * batch_size] * wavelengths_std + wavelengths_mean,
          mask = mask[i*batch_size:(i+1) * batch_size],
          phase = phase[i*batch_size:(i+1) * batch_size] * phase_std + phase_mean,
          photoflux = photoflux[i*batch_size:(i+1) * batch_size] * photoflux_std + photoflux_mean,
          phototime = phototime[i*batch_size:(i+1) * batch_size] * phototime_std + phototime_mean,
          photomask = photomask[i*batch_size:(i+1) * batch_size],
+         photoband = photowavelength[i*batch_size:(i+1) * batch_size],
          identity = identity[i*batch_size:(i+1) * batch_size],
          )
 

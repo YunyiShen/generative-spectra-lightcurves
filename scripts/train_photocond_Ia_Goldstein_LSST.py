@@ -21,6 +21,7 @@ from models.diffusion_cond import photometrycondVariationalDiffusionModel2
 from models.transformer import Transformer
 import json
 import sys
+import datetime
 
 replicate = flax.jax_utils.replicate
 unreplicate = flax.jax_utils.unreplicate
@@ -132,9 +133,10 @@ def train_step(state, flux, wavelength,
 n_steps = 4000
 n_batch = 64
 
-key = jax.random.PRNGKey(0)
+key = jax.random.PRNGKey(42)
 num_local_devices = jax.local_device_count()
 print(f"{num_local_devices} GPUs available")
+print(f"Training started at {datetime.datetime.now()}")
 with trange(n_steps) as steps:
     for step in steps:
         key, *train_step_key = jax.random.split(key, num=jax.local_device_count() + 1)  # Split key across devices
@@ -185,6 +187,8 @@ byte_output = serialization.to_bytes(unreplicate(pstate).params)
 with open(f'../ckpt/pretrain_photometrycond_static_dict_param_cross_attn_Ia_goldstein_midfilt_{mid_filt}_centering{centering}_{realistic}LSST_phase', 'wb') as f:
     f.write(byte_output)
 #
+print(f"Training done, with config midfilter:{mid_filt}, centering:{centering}, LSST: {realistic}")
+print(f"Training ended at {datetime.datetime.now()}")
 
 '''
 ### test for generating

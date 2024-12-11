@@ -6,11 +6,12 @@ import math
 import pysynphot as S
 import matplotlib.pyplot as plt
 from scipy.signal import medfilt
+import sys
 
 lambda_min = 3000
 lambda_max = 8000
 filtersize = 3
-centering = True
+centering = sys.argv[1].lower() == "true"
 training_prop = 0.8
 
 data_dir = "../data/goldstein"
@@ -19,7 +20,7 @@ np.random.seed(42)
 filters = ['u', 'g', 'r', 'i', 'z', 'y']
 filters_np = [np.genfromtxt(f'../data/filters/LSST/LSST_LSST.{ii}.dat') for ii in filters]
 bps = [S.ArrayBandpass(tp[:,0], tp[:,1], name=f'LSST {ii}') for ii, tp in zip(filters, filters_np)]
-phase_range = [0,5,10,15,20] #[-10, 0, 10, 20, 30]
+phase_range = [-10, 0, 10, 20, 30]
 
 
 wavelengths = []
@@ -178,7 +179,7 @@ testing_idx = np.where(np.logical_not( training_or_not))[0]
 file_name = np.array(file_name)
 
 # save to file
-np.savez(f'../data/goldstein_processed/preprocessed_midfilt_{filtersize}_centering{centering}_LSST_phasefrom0.npz', 
+np.savez(f'../data/goldstein_processed/preprocessed_midfilt_{filtersize}_centering{centering}_LSST_phase.npz', 
         wavelength=wavelengths, 
         flux=fluxes, 
         mask=masks,

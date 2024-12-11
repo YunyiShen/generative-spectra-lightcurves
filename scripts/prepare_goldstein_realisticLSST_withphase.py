@@ -17,8 +17,9 @@ c_AAs = (c).to(u.AA/u.s).value
 lambda_min = 3000
 lambda_max = 8000
 filtersize = 3
-centering = True
+centering = sys.argv[1].lower() == "true"
 training_prop = 0.8
+len_per_filter = int(sys.argv[2])
 
 data_dir = "../data/goldstein"
 np.random.seed(42)
@@ -54,7 +55,7 @@ for filename in tqdm(os.listdir(data_dir)):
             in_range_lam = np.where(np.logical_and(lam > lambda_min, lam < lambda_max))
             
             sed_surface = Fnu * c_AAs/lam[None,:]**2
-            LC_concat_band, LC_concat, tim_concat, LC_concat_mask = simulate_lsstLC(sed_surface, tim - tim[peak], lam)
+            LC_concat_band, LC_concat, tim_concat, LC_concat_mask = simulate_lsstLC(sed_surface, tim - tim[peak], lam, len_per_filter=len_per_filter)
             #breakpoint()
             # a random number to decide whether it is in training
             in_training = np.random.rand() < training_prop
@@ -142,13 +143,15 @@ wavelengths_mean = np.mean(wavelengths)
 wavelengths_std = np.std(wavelengths)
 wavelengths = (wavelengths - wavelengths_mean) / wavelengths_std
 
-time_mean = np.mean(times)
-time_std = np.std(times)
+time_mean = np.mean(times[photometric_mask == 1])
+time_std = np.std(times[photometric_mask == 1])
 times = (times - time_mean) / time_std
+times = times * photometric_mask
 
-photometric_mean = np.mean(photometric)
-photometric_std = np.std(photometric)
+photometric_mean = np.mean(photometric[photometric_mask == 1])
+photometric_std = np.std(photometric[photometric_mask == 1])
 photometric = (photometric - photometric_mean) / photometric_std
+photometric = photometric * photometric_mask
 
 
 training_or_not = np.array(training_or_not)
@@ -157,7 +160,7 @@ testing_idx = np.where(np.logical_not( training_or_not))[0]
 file_name = np.array(file_name)
 
 # save to file
-np.savez(f'../data/goldstein_processed/preprocessed_midfilt_{filtersize}_centering{centering}_realisticLSST_phase.npz', 
+np.savez(f'../data/goldstein_processed/preprocessed_midfilt_{filtersize}_centering{centering}_realisticLSST_trunc{len_per_filter}_phase.npz', 
         wavelength=wavelengths, 
         flux=fluxes, 
         mask=masks,
