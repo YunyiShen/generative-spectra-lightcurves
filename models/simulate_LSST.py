@@ -24,9 +24,10 @@ def simulate_lsstLC(sed_surface, spec_time, # time in days
                     filters_loc = "../data/filters/LSST",
                     phase_offset_lim = [10,20], # at which day since first observation to peak the transient 
                     phase_lim_for_lc_too_long = [-20, 80],
-                    len_per_filter = 60,
-                    minimum_LC_size = 30,
-                    max_retry_location = 500):
+                    min_maximum_phase = 50, # minimum for maximum time in a light curve (we will skip any light curve cannot cover up to this day)
+                    len_per_filter = 10,
+                    minimum_LC_size = 24,
+                    max_retry_location = 52500):
     all_filters = filters_encoding.keys()
     h = 6.626e-27  # Planck's constant (erg·s)
     c = 2.998e10*u.cm/u.s   # Speed of light (cm/s)
@@ -57,9 +58,17 @@ def simulate_lsstLC(sed_surface, spec_time, # time in days
     #cnx.close()
     # Generate num_points random coordinates
     num_events = 1
-
+    ori_sed_surface = sed_surface
+    ori_spec_time = spec_time
+    ori_spec_wavelengths = spec_wavelengths
     #if randomly generating locations, uncomment below
     for _ in range(max_retry_location):
+        # reset the original values
+        sed_surface = ori_sed_surface
+        spec_time = ori_spec_time
+        spec_wavelengths = ori_spec_wavelengths
+
+        # generate random locations
         eventRA = np.random.uniform(0, 2 * np.pi, num_events) * u.rad
         eventRA = eventRA.to(u.deg).value
         eventDec = np.arcsin(np.random.uniform(-1, 1, num_events)) * u.rad
@@ -92,6 +101,8 @@ def simulate_lsstLC(sed_surface, spec_time, # time in days
         # decide when the transient peaks
         peak_offset = np.random.uniform(phase_offset_lim[0], phase_offset_lim[1])
         new_s = (df_obs['observationStartMJD'].values - np.min(df_obs['observationStartMJD'].values)-peak_offset)*86400
+        if np.max(new_s/86400) <= min_maximum_phase:
+            continue
         #breakpoint()
         # observations
         df_obs = df_obs[(new_s >= np.min(spec_time)) & (new_s <= np.max(spec_time))]
@@ -237,9 +248,14 @@ def simulate_lsstLC(sed_surface, spec_time, # time in days
             plt.title('Light curves')
             plt.show()
             plt.savefig('light_curves.png')
-            breakpoint()
+            #breakpoint()
             '''
-            return photoband, photoflux, phototime, photomask
+            
+            #breakpoint()
+            if np.sum(photomask) > minimum_LC_size:
+                return photoband, photoflux, phototime, photomask
+
+            #return photoband, photoflux, phototime, photomask
 
 
 
