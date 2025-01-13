@@ -19,7 +19,7 @@ def main():
     num_tasks = int(sys.argv[2])
     all_starting_points = [i for i in range(num_tasks)]
     starting_points = all_starting_points[ my_task_id:len(all_starting_points):num_tasks]
-
+    print(f"running inference using data starting from {starting_points}")
 
 
 
@@ -149,3 +149,5 @@ def main():
                     identity = identity[(i*batch_size + offset):((i+1) * batch_size + offset)],
                     )
 
+if __name__ == "__main__":
+    main()
