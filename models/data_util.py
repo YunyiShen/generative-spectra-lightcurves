@@ -39,12 +39,15 @@ class specdata:
                  phase_cutoff = [-20, 70],
                  combine_photometry = True,
                  centering = False,
+
                  midfiltsize = 3,
+                 onlyIa = False,
                  verbose = False,
                  debug = False, debugread = 8):
         self.master_list = pd.read_csv(master_list, header = 0)
         self.light_curves = light_curves
         self.spectra = spectra
+        self.onlyIa = onlyIa
         self.midfiltsize = midfiltsize
         self.max_length = max_length
         self.photometry_len = photometry_len
@@ -113,7 +116,10 @@ class specdata:
                 if verbose:
                     print(f"Skipping {row['ZTFID']} because its light curve doesn't exist")
                 continue
-
+            if self.onlyIa and "Ia" not in row['type']:
+                if verbose:
+                    print(f"Skipping {row['ZTFID']} because its type is not Ia")
+                continue
 
             try:
                 spectra_pd = pd.read_csv(f"{self.spectra}/{row['ZTFID']}{self.post_fix}.csv", header=None)

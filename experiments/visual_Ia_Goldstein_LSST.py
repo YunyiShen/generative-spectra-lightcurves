@@ -8,10 +8,11 @@ import json
 mid_filt = int(sys.argv[1]) #3
 centering = sys.argv[2].lower() == "true" #False
 realistic = "realistic" if sys.argv[3].lower() == "true" else "" #"" # "" #if you want high cadency
+postfix = "_selfattncontext"
 
-print(f"centering: {centering}, realistic: {realistic}")
+print(f"ploting centering: {centering}, realistic: {realistic}")
 
-results = np.load(f"../samples/posterior_test_photometrycond_first10_Ia_Goldstein_centering{centering}_{realistic}LSST_phase.npz")
+results = np.load(f"../samples/posterior_test_photometrycond_first10_Ia_Goldstein_centering{centering}_{realistic}LSST_phase{postfix}.npz")
 posterior_samples, gt, wavelength, mask = results['posterior_samples'], results['gt'], results['wavelength'], results['mask']
 mask = mask.astype(bool)
 #breakpoint()
@@ -57,7 +58,7 @@ for i in range(10):
     
 plt.tight_layout(rect=[0.04, 0.04, 1, 1])
 plt.show()
-plt.savefig(f'first_ten_Ia_Goldstein_centered{centering}_{realistic}LSST_phase.png')
+plt.savefig(f'first_ten_Ia_Goldstein_centered{centering}_{realistic}LSST_phase{postfix}.png')
 plt.close()
 
 for i in range(10):
@@ -67,7 +68,8 @@ for i in range(10):
         plt.plot(wavelength[0,:], running_thingy[-1], 
                 color='green', label='posterior sample', alpha=0.01)
     running_thingy = np.array(running_thingy)
-    #running_thingy -= running_thingy.mean(axis = 1)[:,None]
+    if centering:
+        running_thingy -= running_thingy.mean(axis = 1)[:,None]
     posterior_mean = np.mean(running_thingy, axis=0)
     plt.plot(wavelength[0,:], posterior_mean, 
                 color='blue', label='posterior mean')
@@ -75,6 +77,7 @@ for i in range(10):
     gti = gt[i][mask[i]]
     #gti -= gti.mean()
     wavelengthi = wavelength[i][mask[i]]
+    #breakpoint()
     in_range = np.where((wavelengthi > 3000) * (wavelengthi < 8000) )
     gti = gti[in_range]
     #gti = (gti-gti.min())/(gti.max()-gti.min())
@@ -87,4 +90,4 @@ for i in range(10):
 #plt.ylim(-5, 3)
 plt.tight_layout(rect=[0.04, 0.04, 1, 1])
 plt.show()
-plt.savefig(f'first_ten_Ia_Goldstein_together_centered{centering}_{realistic}LSST_phase.png')
+plt.savefig(f'first_ten_Ia_Goldstein_together_centered{centering}_{realistic}LSST_phase{postfix}.png')

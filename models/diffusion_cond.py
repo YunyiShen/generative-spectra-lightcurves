@@ -366,6 +366,8 @@ class photometrycondVariationalDiffusionModel2(nn.Module):
     noise_schedule: str = "linear"  # "linear", "learned_linear", or "learned_net"
     noise_scale: float = 1.0e-3
     d_t_embedding: int = 32
+    nbands: int = 3
+    concat_photo: bool = True
     score: str = "transformer"  # "transformer", "graph"
     score_dict: dict = dataclasses.field(
         default_factory=lambda: {
@@ -403,6 +405,8 @@ class photometrycondVariationalDiffusionModel2(nn.Module):
         if self.score == "transformer":
             self.score_model = photometrycondTransformerScoreNet2(
                 d_t_embedding=self.d_t_embedding,
+                nbands=self.nbands,
+                concat_photo=self.concat_photo,
                 score_dict=self.score_dict,
             )
         else:
