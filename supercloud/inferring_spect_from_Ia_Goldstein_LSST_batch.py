@@ -87,7 +87,7 @@ def main():
     batch_size = 10
     batch_size = min(photoflux.shape[0], batch_size)
 
-    total_SNs_per_job = n_batch * batch_size/5 # 5 phases
+    total_SNs_per_job = int(n_batch * batch_size/5) # 5 phases
 
     n_samples = 50
     #posterior_samples = []
@@ -97,6 +97,7 @@ def main():
         offset = start * total_SNs_per_job
         from tqdm import tqdm
         for i in tqdm(range(n_batch)):
+            #breakpoint()
             phase_cond = np.repeat(phase[(i*batch_size + offset):((i+1) * batch_size + offset) ], n_samples, axis = 0) #np.array([0.0 ] * n_samples * batch_size)
             #breakpoint()
             #from tqdm import tqdm

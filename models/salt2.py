@@ -81,18 +81,22 @@ def fit_supernova(lc):
     return res[0].parameters
 
 
-def _salt2sed(params):
-    return params[2]*(m0flux + params[3]*m1flux)*np.exp(-params[4]*cl)
+#def _salt2sed(params):
+#    return params[2]*(m0flux + params[3]*m1flux)*np.exp(-params[4]*cl)
 
 
 
-def getsalt2_sed(time, mag, band, returnparams=False):
+def getsalt2_spectrum(time, mag, band, wavelength, phase, returnparams=False):
 
     lc = makelc(time, mag, band)
     params = fit_supernova(lc)
-    breakpoint()
-    sed = _salt2sed(params)
+    mod = sncosmo.Model('salt3')
+    mod.set(z=params[0], t0=params[1], x0=params[2], x1=params[3], c=params[4])
+    #breakpoint()
+    spec = np.log10(mod.flux(phase, wavelength.astype(float)))
+    #breakpoint()
+    #sed = _salt2sed(params)
     if returnparams:
-        return sed, params
+        return spec, params
     else:
-        return sed
+        return spec
