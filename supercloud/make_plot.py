@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-postfix = ""#"_centering"
+postfix = "" #"_centering"
 
 results = np.load(f'./metrics/test_losses{postfix}.npz')
 
@@ -12,7 +12,8 @@ vdm_width = results['vdm_width']
 identities = results['identities']
 wavelength = results['wavelength']
 
-fig, axes = plt.subplots(5, 2, figsize=(10, 6), sharex=True)
+plt.rcParams['font.size'] = 14 
+fig, axes = plt.subplots(5, 2, figsize=(15, 6), sharex=True)
 
 # Adjust spacing between subplots
 fig.subplots_adjust(hspace=0)
@@ -53,7 +54,7 @@ for i in range(5):
     #sd_width = np.std(vdm_width[i], axis=0)
 fig.text(0., 0.5, 'residual', va='center', rotation='vertical', fontsize=12)
 axes[0,0].set_title('SALT3')
-axes[0,1].set_title('VDM posterior mean')
+axes[0,1].set_title('VDiT posterior mean')
 axes[4,0].tick_params(labelbottom=True)
 axes[4,1].tick_params(labelbottom=True)
 
@@ -62,12 +63,12 @@ axes[4,1].set_xlabel('Wavelength')
 
 plt.tight_layout(rect=[0.04, 0.04, 1, 1])
 plt.show()
-plt.savefig(f'./plots/predicting{postfix}.png')
+plt.savefig(f'./plots/predicting{postfix}.png', dpi = 300)
 plt.close()
 
 
 ##### UQ results #####
-fig, axes = plt.subplots(5, 2, figsize=(10, 6), sharex=True)
+fig, axes = plt.subplots(5, 2, figsize=(15, 6), sharex=True)
 
 # Adjust spacing between subplots
 fig.subplots_adjust(hspace=0)
@@ -99,8 +100,8 @@ for i in range(5):
 
     #mean_width = np.mean(vdm_width[i], axis=0)
     #sd_width = np.std(vdm_width[i], axis=0)
-axes[0,0].set_title('VDM CI coverage')
-axes[0,1].set_title('VDM CI width')
+axes[0,0].set_title('VDiT CI coverage')
+axes[0,1].set_title('VDiT CI width')
 axes[4,0].tick_params(labelbottom=True)
 axes[4,1].tick_params(labelbottom=True)
 
