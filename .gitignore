@@ -185,3 +185,8 @@ ckpt/*
 scripts/makeplot.py
 
 samples/*
+
+*LLSUB*
+!supercloud/samples
+!supercloud/metrics
+!ckpt/pretrain_photometrycond_static_dict_param_cross_attn_Ia_goldstein_midfilt_3_centeringFalse_realisticLSST_phase
