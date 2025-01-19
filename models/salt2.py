@@ -4,7 +4,14 @@ from sncosmo.salt2utils import SALT2ColorLaw
 from astropy.table import Table
 import pandas as pd
 import os
+from cosmolopy import magnitudes, cc
+import math
+import astropy.units as u
+import matplotlib.pyplot as plt
+
 script_dir = os.path.dirname(os.path.abspath(__file__))
+c = 2.998e10*u.cm/u.s   # Speed of light (cm/s)
+c_AAs = (c).to(u.AA/u.s).value
 
 # register SALT3 model #
 salt3_0 = os.path.join(script_dir, 'salt3_template_0.dat')
@@ -47,14 +54,18 @@ for thisband in bands:
 ab = sncosmo.get_magsystem('ab')
 
 def makelc(time, mag, band):
-
+    zp = 0
+    zp_simu = 48.6 #48.6
     lc = Table()
     lc['time'] = time
     lc['band'] = np.array([bandnames[int(i)] for i in band])
     lc['zpsys'] = np.array(['ab']*len(time))
-    lc['zp'] = np.zeros(len(time)) + 25
-    lc['flux'] = np.array([ab.band_mag_to_flux(m + 25, b) for m, b in zip(mag, lc['band'])])
-    lc['fluxerr'] = 1e-5*np.ones(len(time))
+    lc['zp'] = np.zeros(len(time)) + zp
+    lc['flux'] = np.array([ab.band_mag_to_flux(m + zp_simu - zp, b) for m, b in zip(mag, lc['band'])])
+    #lc['flux'] = np.array([ 10**(-0.4 *(m + zp_simu - zp))*ab.zpbandflux(b) for m, b in zip(mag, lc['band'])])
+    
+    #breakpoint()
+    lc['fluxerr'] = 0*lc['flux'] + 0.1 * np.std(lc['flux']) #* lc['flux']/np.max(lc['flux'])
     return lc
 
 def fit_supernova(lc):
@@ -72,12 +83,15 @@ def fit_supernova(lc):
     t0, x0, x1, c
         Best-fitting parameters of the model
     """
-    bnds = {'t0':(-100,100),'x0':(-1e-3, 1e-3), 'x1':(-3, 3), 'c':(-0.5, 0.5)}
+    #bnds = {'t0':(-10,10),'x0':(-5e-0, 5e-0), 'x1':(-10, 10), 'c':(-1, 1)}
     mod = sncosmo.Model('salt3') #sncosmo.Model(source = source)
     mod.set(z=0.) 
+    mod.set(t0=0.)
+    bnds = {"t0":(-5,5)}
     res = sncosmo.fit_lc(lc, mod, 
-                         vparam_names=['t0', 'x0', 'x1', 'c'],
-                         bounds=bnds, minsnr=0)
+                         vparam_names=["t0",'x0', 'x1', 'c'],
+                         bounds=bnds,#None,#bnds, 
+                         minsnr=0)
     return res[0].parameters
 
 
@@ -92,7 +106,14 @@ def getsalt2_spectrum(time, mag, band, wavelength, phase, returnparams=False):
     params = fit_supernova(lc)
     mod = sncosmo.Model('salt3')
     mod.set(z=params[0], t0=params[1], x0=params[2], x1=params[3], c=params[4])
-    #breakpoint()
+    
+    '''
+    figg = sncosmo.plot_lc(lc, model=mod)
+    figg.savefig('temp.png')
+    plt.close()
+    breakpoint()
+    '''
+
     spec = np.log10(mod.flux(phase, wavelength.astype(float)))
     #breakpoint()
     #sed = _salt2sed(params)
