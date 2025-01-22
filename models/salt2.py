@@ -7,11 +7,13 @@ import os
 from cosmolopy import magnitudes, cc
 import math
 import astropy.units as u
+from astropy.constants import h
 import matplotlib.pyplot as plt
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 c = 2.998e10*u.cm/u.s   # Speed of light (cm/s)
 c_AAs = (c).to(u.AA/u.s).value
+h_erg = h.to(u.erg * u.s).value
 
 # register SALT3 model #
 salt3_0 = os.path.join(script_dir, 'salt3_template_0.dat')
@@ -55,14 +57,15 @@ ab = sncosmo.get_magsystem('ab')
 
 def makelc(time, mag, band):
     zp = 0
-    zp_simu = 48.6 #48.6
+    zp_simu = 0#48.6 #48.6
     lc = Table()
     lc['time'] = time
     lc['band'] = np.array([bandnames[int(i)] for i in band])
     lc['zpsys'] = np.array(['ab']*len(time))
     lc['zp'] = np.zeros(len(time)) + zp
-    lc['flux'] = np.array([ab.band_mag_to_flux(m + zp_simu - zp, b) for m, b in zip(mag, lc['band'])])
-    #lc['flux'] = np.array([ 10**(-0.4 *(m + zp_simu - zp))*ab.zpbandflux(b) for m, b in zip(mag, lc['band'])])
+    #breakpoint()
+    #lc['flux'] = np.array([ab.band_mag_to_flux(m + zp_simu - zp, b) for m, b in zip(mag, lc['band'])])
+    lc['flux'] = np.array([ 10**(-0.4 *(m + zp_simu - zp)) for m, b in zip(mag, lc['band'])])
     
     #breakpoint()
     lc['fluxerr'] = 0*lc['flux'] + 0.1 * np.std(lc['flux']) #* lc['flux']/np.max(lc['flux'])
@@ -107,14 +110,13 @@ def getsalt2_spectrum(time, mag, band, wavelength, phase, returnparams=False):
     mod = sncosmo.Model('salt3')
     mod.set(z=params[0], t0=params[1], x0=params[2], x1=params[3], c=params[4])
     
-    '''
     figg = sncosmo.plot_lc(lc, model=mod)
-    figg.savefig('temp.png')
+    figg.savefig('salt2fit.png')
     plt.close()
-    breakpoint()
-    '''
+    #breakpoint()
+    
 
-    spec = np.log10(mod.flux(phase, wavelength.astype(float)))
+    spec = np.log10(mod.flux(phase, wavelength.astype(float)) * wavelength ** 2 / c_AAs ) #/ 1e-8
     #breakpoint()
     #sed = _salt2sed(params)
     if returnparams:
