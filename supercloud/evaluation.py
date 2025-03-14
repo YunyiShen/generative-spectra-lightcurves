@@ -18,12 +18,17 @@ vdm_coverage = [[] for i in range(5)]
 vdm_width = [[] for i in range(5)]
 identities = [[] for i in range(5)]
 
+salt_recon_test_loss = [[] for i in range(5)]
+salt_recon_coverage = [[] for i in range(5)]
+salt_recon_width = [[] for i in range(5)]
+
 
 for job in tqdm(range(num_jobs)):
     for batch in range(n_batch):
         results = np.load(f"./samples/posterior_test_photometrycond_job{job}_batch{batch}_size{batch_size}_Ia_Goldstein_centeringFalse_realisticLSST_phase.npz")
         salt3_res = np.load(f"./samples/salt2_samples_job{job}_batch{batch}_size{batch_size}_Ia_Goldstein_centeringFalse_realisticLSST_phase.npz")
-        
+        salt3_recon = np.load(f"./samples/salt2_spectrareconstruct_job{job}_batch{batch}_size{batch_size}_Ia_Goldstein_centeringFalse_realisticLSST_phase.npz")
+
         gt = results['gt']
         posterior = results['posterior_samples']
         posterior = posterior.reshape(batch_size, 50,posterior.shape[1])
@@ -37,6 +42,14 @@ for job in tqdm(range(num_jobs)):
         salt3_mean = np.nanmean(salt3, axis = 1)
         salt3_upper = np.nanquantile(salt3, 0.95, axis = 1)
         salt3_lower = np.nanquantile(salt3, 0.05, axis = 1)
+
+        salt3_recon_samples = salt3_recon['salt_results']
+        salt3_recon_samples = np.where(salt3_recon_samples == -np.inf, 
+                                       np.nan, salt3_recon_samples)
+        salt3_recon_mean = np.nanmean(salt3_recon_samples, axis = 1)
+        salt3_recon_upper = np.nanquantile(salt3_recon_samples, 0.95, axis = 1)
+        salt3_recon_lower = np.nanquantile(salt3_recon_samples, 0.05, axis = 1)
+
         #breakpoint()
         wavelength = results['wavelength']
         mask = results['mask']
@@ -50,14 +63,22 @@ for job in tqdm(range(num_jobs)):
             wavelength_i = wavelength[i]
             posterior_mean_i = posterior_mean[i]
 
+            salt3_rec_mean_i = salt3_recon_mean[i]
+
             salt3_mean_i = salt3_mean[i]
             salt_test_loss[which_list] += [salt3_mean_i - gt_i]
             vdm_test_loss[which_list] += [posterior_mean_i - gt_i]
+            salt_recon_test_loss[which_list] += [salt3_rec_mean_i - gt_i]
+
+            #breakpoint()
 
             salt_upper_i = salt3_upper[i]
             salt_lower_i = salt3_lower[i]
             posterior_upper_i = posterior_upper[i]
             posterior_lower_i = posterior_lower[i]
+
+            salt_recon_upper_i = salt3_recon_upper[i]
+            salt_recon_lower_i = salt3_recon_lower[i]
             
             cover = np.logical_and(posterior_lower_i < gt_i, gt_i < posterior_upper_i)
             vdm_coverage[which_list] += [cover]
@@ -66,6 +87,11 @@ for job in tqdm(range(num_jobs)):
             cover = np.logical_and(salt_lower_i < gt_i, gt_i < salt_upper_i)
             salt_coverage[which_list] += [cover]
             salt_width[which_list] += [salt_upper_i - salt_lower_i]
+
+            cover = np.logical_and(salt_recon_lower_i < gt_i, 
+                                   gt_i < salt_recon_upper_i )
+            salt_recon_coverage[which_list] += [cover]
+            salt_recon_width[which_list] += [salt_recon_upper_i - salt_recon_lower_i]
 
             identities[which_list] += [identity[i]]
         #breakpoint()
@@ -76,6 +102,11 @@ for job in tqdm(range(num_jobs)):
                 vdm_test_loss = vdm_test_loss,
                 vdm_coverage = vdm_coverage,
                 vdm_width = vdm_width,
+
+                salt_recon_test_loss = salt_recon_test_loss,
+                salt_recon_coverage = salt_recon_coverage,
+                salt_recon_width = salt_recon_width,
+
                 identities = identities,
                 wavelength = wavelength[0,:]
                 )

@@ -10,6 +10,8 @@ batch = 4 #2 #4
 batch_size = 10
 results = np.load(f"./samples/posterior_test_photometrycond_job{job}_batch{batch}_size{batch_size}_Ia_Goldstein_centeringFalse_realisticLSST_phase.npz")
 salt3_res = np.load(f"./samples/salt2_samples_job{job}_batch{batch}_size{batch_size}_Ia_Goldstein_centeringFalse_realisticLSST_phase.npz")
+salt3_recon_res = np.load(f"./samples/salt2_spectrareconstruct_job{job}_batch{batch}_size{batch_size}_Ia_Goldstein_centeringFalse_realisticLSST_phase.npz")
+
 
 gt = results['gt']
 posterior = results['posterior_samples']
@@ -23,6 +25,12 @@ salt3 = salt3_res['salt_samples']
 salt3_mean = np.mean(salt3, axis = 1)
 salt3_upper = np.quantile(salt3, 0.975, axis = 1)
 salt3_lower = np.quantile(salt3, 0.025, axis = 1)
+
+#breakpoint()
+salt3_recon = salt3_recon_res['salt_results']
+salt3_recon_mean = np.mean(salt3_recon, axis = 1)
+salt3_recon_upper = np.quantile(salt3_recon, 0.975, axis = 1)
+salt3_recon_lower = np.quantile(salt3_recon, 0.025, axis = 1)
 
 wavelength = results['wavelength']
 mask = results['mask']
@@ -75,6 +83,12 @@ for k in range(10):
                                     salt3_lower[k], 
                                     salt3_upper[k], 
                             color='green', alpha=0.3)
+    axs[i].plot(wavelength[0,:], salt3_recon_mean[k],
+                color='purple', label='SALT3-spectra')
+    axs[i].fill_between(wavelength[0,:],
+                                    salt3_recon_lower[k], 
+                                    salt3_recon_upper[k], 
+                            color='purple', alpha=0.3)
 
     if k == 5:
         axs[i].legend(fontsize=20)
@@ -144,6 +158,15 @@ inset_ax.fill_between(wavelength[0,:],
                             salt3_upper[1],
                             color='green', alpha=0.3)
 
+inset_ax.plot(wavelength[0,:], salt3_recon_mean[1], 
+              color='purple')
+inset_ax.fill_between(wavelength[0,:],
+                            salt3_recon_lower[1], 
+                            salt3_recon_upper[1],
+                            color='purple', alpha=0.3)
+
+
+
 
 inset_ax.set_xlim(5500, 6500)
 inset_ax.set_ylim(-13.1, -11.6)
@@ -186,6 +209,13 @@ inset_ax.fill_between(wavelength[0,:],
                             salt3_lower[2],
                             salt3_upper[2],
                             color='green', alpha=0.3)
+
+inset_ax.plot(wavelength[0,:], salt3_recon_mean[2], 
+              color='purple')
+inset_ax.fill_between(wavelength[0,:],
+                            salt3_recon_lower[2],
+                            salt3_recon_upper[2],
+                            color='purple', alpha=0.3)
 
 inset_ax.set_xlim(5500, 6500)
 inset_ax.set_ylim(-13.1, -11.6)
@@ -233,6 +263,12 @@ inset_ax.fill_between(wavelength[0,:],
                             salt3_lower[7],
                             salt3_upper[7],
                             color='green', alpha=0.3)
+inset_ax.plot(wavelength[0,:], salt3_recon_mean[7], 
+              color='purple')
+inset_ax.fill_between(wavelength[0,:],
+                            salt3_recon_lower[7],
+                            salt3_recon_upper[7],
+                            color='purple', alpha=0.3)
 
 inset_ax.set_xlim(5500, 6500)
 inset_ax.set_ylim(-13.1 + 0.5, -11.6 + 0.5)
@@ -282,6 +318,12 @@ inset_ax.fill_between(wavelength[0,:],
                             salt3_lower[8],
                             salt3_upper[8],
                             color='green', alpha=0.3)
+inset_ax.plot(wavelength[0,:], salt3_recon_mean[8], 
+              color='purple')
+inset_ax.fill_between(wavelength[0,:],
+                            salt3_recon_lower[8],
+                            salt3_recon_upper[8],
+                            color='purple', alpha=0.3)
 
 inset_ax.set_xlim(5500, 6500)
 inset_ax.set_ylim(-13.1 + 0.5, -11.6 + 0.5)
@@ -333,6 +375,13 @@ axs[0].fill_between(wavelength[0,:],
                             salt3_upper[2],
                             color='green', alpha=0.3)
 
+axs[0].plot(wavelength[0,:], salt3_recon_mean[2], 
+              color='purple', label='SALT3-spectra', linewidth=5)
+axs[0].fill_between(wavelength[0,:],
+                            salt3_recon_lower[2],
+                            salt3_recon_upper[2],
+                            color='purple', alpha=0.3)
+
 axs[0].legend()
 axs[0].set_title(f'Days after peak: {int(phase[2])}')
 
@@ -356,6 +405,12 @@ inset_ax.fill_between(wavelength[0,:],
                             salt3_lower[2],
                             salt3_upper[2],
                             color='green', alpha=0.3)
+inset_ax.plot(wavelength[0,:], salt3_recon_mean[2], 
+              color='purple', linewidth=5)
+inset_ax.fill_between(wavelength[0,:],
+                            salt3_recon_lower[2],
+                            salt3_recon_upper[2],
+                            color='purple', alpha=0.3)
 
 inset_ax.set_xlim(5500, 6500)
 inset_ax.set_ylim(-13.1, -11.6)
@@ -395,6 +450,13 @@ axs[1].fill_between(wavelength[0,:],
                             salt3_lower[7],
                             salt3_upper[7],
                             color='green', alpha=0.3)#axs[1].legend(fontsize=20)
+axs[1].plot(wavelength[0,:], salt3_recon_mean[7], 
+              color='purple', label='SALT3-spectra', linewidth=5)
+axs[1].fill_between(wavelength[0,:],
+                            salt3_recon_lower[7],
+                            salt3_recon_upper[7],
+                            color='purple', alpha=0.3)#axs[1].legend(fontsize=20)
+
 axs[1].set_title(f'Days after peak: {int(phase[7])}')
 
 axs[1].tick_params(axis="y", which="both",
@@ -425,6 +487,12 @@ inset_ax.fill_between(wavelength[0,:],
                           posterior_lower[7],
                             posterior_upper[7],
                             color='blue', alpha=0.3)
+inset_ax.plot(wavelength[0,:], salt3_recon_mean[7], 
+              color='green', linewidth=5)
+inset_ax.fill_between(wavelength[0,:],
+                            salt3_recon_lower[7],
+                            salt3_recon_upper[7],
+                            color='green', alpha=0.3)
 
 inset_ax.set_xlim(5500, 6500)
 inset_ax.set_ylim(-13.1 + 0.5, -11.6 + 0.5)
