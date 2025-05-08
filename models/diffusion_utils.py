@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as np
 import flax.linen as nn
+from tqdm import tqdm
 
 
 class NoiseScheduleNet(nn.Module):
@@ -295,7 +296,7 @@ def classtimecondgenerate(vdm, params, rng, shape, wavelength = None, spectime =
 def photometrycondgenerate(vdm, params, rng, shape, wavelength = None, spectime = None,mask=None, 
                     photometric_flux=None, photometric_time=None, 
                     photometric_wavelength = None,photometric_mask=None, steps=None):
-    """Generate samples from a classcondVDM model."""
+    """Generate samples from a photocondVDM model."""
 
     # Generate latents
     rng, spl = jax.random.split(rng)
@@ -333,4 +334,61 @@ def photometrycondgenerate(vdm, params, rng, shape, wavelength = None, spectime 
     var0 = sigma2(g0)
     z0_rescaled = z0 / np.sqrt(1.0 - var0)
     return vdm.apply(params, z0_rescaled, method=vdm.decode)
+
+
+
+def photometrycondgenerate_seq(vdm, params, rng, shape, wavelength = None, spectime = None,mask=None, 
+                    photometric_flux=None, photometric_time=None, 
+                    photometric_wavelength = None,photometric_mask=None, steps=None, save_every = 25):
+    """Generate samples from a photocondVDM model and return the sequence of denoising process."""
+
+    # Generate latents
+    rng, spl = jax.random.split(rng)
+
+    # If using a latent projection, use embedding size; otherwise, use feature size
+    zt = jax.random.normal(spl, shape + (vdm.d_feature,))
+    if vdm.timesteps == 0:
+        if steps is None:
+            raise Exception("Need to specify steps argument for continuous-time VLB")
+        else:
+            timesteps = steps
+    else:
+        timesteps = vdm.timesteps
+
+    def body_fn(i, z_t):
+        return vdm.apply(
+            params,
+            rng,
+            i,
+            timesteps,
+            z_t,
+            wavelength,
+            spectime,
+            mask=mask,
+            photometric_flux=photometric_flux,
+            photometric_time=photometric_time,
+            photometric_wavelength = photometric_wavelength,
+            photometric_mask=photometric_mask,
+            method=vdm.sample_step,
+        )
+    generations_step = []
+    g1 = vdm.apply(params, 1.0, method=vdm.gammat)
+    var1 = sigma2(g1)
+    zt_rescaled = zt / np.sqrt(1.0 - var1)
+    generations_step.append(vdm.apply(params, zt_rescaled, method=vdm.decode))
+    for i in tqdm(range(timesteps)):
+        zt = body_fn(i, zt)
+        if (i + 1) % save_every == 0:
+            g1 = vdm.apply(params, 1.-(i+1.0)/timesteps, method=vdm.gammat)
+            var1 = sigma2(g1)
+            zt_rescaled = zt / np.sqrt(1.0 - var1)
+            generations_step.append(vdm.apply(params, zt_rescaled, method=vdm.decode))
+
+
+    #z0 = jax.lax.fori_loop(lower=0, upper=timesteps, body_fun=body_fn, init_val=zt)
+
+    #g0 = vdm.apply(params, 0.0, method=vdm.gammat)
+    #var0 = sigma2(g0)
+    #z0_rescaled = z0 / np.sqrt(1.0 - var0)
+    return generations_step #vdm.apply(params, z0_rescaled, method=vdm.decode)
 
